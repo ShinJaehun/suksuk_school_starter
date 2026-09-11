@@ -241,7 +241,7 @@ teacher는 normal runtime login 대상이 아니다.
 
 - Active login lookup은 planning account를 검색하지 않는다.
 - Active account가 없거나 credential이 틀려도 planning account로 fallback하지 않는다.
-- SchoolYear가 global-admin-only rollover로 active가 된 뒤에만 normal login 후보가
+- SchoolYear가 승인된 rollover로 active가 된 뒤에만 normal login 후보가
   된다.
 
 Planning teacher bootstrap UI와 bulk operation은 후속 phase지만 이 authentication
