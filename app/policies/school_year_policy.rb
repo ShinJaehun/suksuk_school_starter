@@ -1,5 +1,9 @@
 class SchoolYearPolicy < ApplicationPolicy
   def show?
+    prepare?
+  end
+
+  def prepare?
     record.persisted? && record.planning? && planning_operator?
   end
 

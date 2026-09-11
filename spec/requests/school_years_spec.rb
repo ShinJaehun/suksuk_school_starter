@@ -89,4 +89,49 @@ RSpec.describe 'Planning SchoolYears', type: :request do
     expect(response.body).to include('2027학년도 준비 중')
     expect(response.body).not_to include('2027학년도 준비 시작')
   end
+
+  it 'shows planning preparation counts and future entry labels on the school overview' do
+    planning_year = create(:school_year, school: school, year: 2027)
+    assigned_teacher = create(:user, :teacher, school_year: planning_year,
+      login_id: 'assigned-teacher', school_role: 'member', grade: 4)
+    create(:user, :teacher, school_year: planning_year,
+      login_id: 'unassigned-teacher', school_role: 'member', grade: 5)
+    create(:user, :teacher, school_year: planning_year,
+      login_id: 'inactive-teacher', school_role: 'member', grade: 6, active: false)
+    assigned_classroom = create(:classroom, school_year: planning_year, grade: 4)
+    create(:classroom, school_year: planning_year, grade: 5)
+    create(:classroom, school_year: planning_year, grade: 6, active: false)
+    create(:homeroom_assignment,
+      teacher: assigned_teacher,
+      classroom: assigned_classroom,
+      started_on: Date.new(2027, 3, 1))
+    sign_in admin
+
+    get school_path(school)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('선생님 준비', '2명')
+    expect(response.body).to include('교실 준비', '2개')
+    expect(response.body).to include('담임 연결', '1 / 2')
+  end
+
+  it 'shows planning preparation only to an authorized planning operator' do
+    create(:school_year, school: school, year: 2027)
+    other_school = create(:school)
+    create(:school_year, :active, school: other_school, year: 2026)
+    other_manager = create(:user, :teacher, :active_annual_teacher,
+      annual_school: other_school, annual_school_role: 'manager')
+
+    sign_in manager
+    get school_path(school)
+    expect(response.body).to include('선생님 준비', '교실 준비', '담임 연결')
+
+    sign_in other_manager
+    get school_path(school)
+    expect(response).to have_http_status(:not_found)
+
+    sign_in create(:user, :teacher, :active_annual_teacher, annual_school: school)
+    get school_path(school)
+    expect(response.body).not_to include('선생님 준비', '교실 준비', '담임 연결')
+  end
 end

@@ -1,0 +1,24 @@
+<dl class="mt-5 grid gap-3 sm:grid-cols-3">
+  <div class="rounded-xl bg-slate-50 p-4">
+    <dt class="text-sm font-semibold text-slate-700"><%= t("school_years.planning.preparation.teachers") %></dt>
+    <dd class="mt-1 text-xl font-bold text-slate-900">
+      <%= t("school_years.planning.preparation.teacher_count", count: summary.fetch(:teacher_count)) %>
+    </dd>
+  </div>
+  <div class="rounded-xl bg-slate-50 p-4">
+    <dt class="text-sm font-semibold text-slate-700"><%= t("school_years.planning.preparation.classrooms") %></dt>
+    <dd class="mt-1 text-xl font-bold text-slate-900">
+      <%= t("school_years.planning.preparation.classroom_count", count: summary.fetch(:classroom_count)) %>
+    </dd>
+  </div>
+  <div class="rounded-xl bg-slate-50 p-4">
+    <dt class="text-sm font-semibold text-slate-700"><%= t("school_years.planning.preparation.homerooms") %></dt>
+    <dd class="mt-1 text-xl font-bold text-slate-900">
+      <%= t(
+            "school_years.planning.preparation.homeroom_count",
+            assigned: summary.fetch(:assigned_classroom_count),
+            total: summary.fetch(:classroom_count)
+          ) %>
+    </dd>
+  </div>
+</dl>

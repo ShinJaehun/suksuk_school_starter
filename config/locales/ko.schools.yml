@@ -66,6 +66,13 @@ ko:
       existing: "%{year}학년도 준비 중"
       next: "현재 %{current_year}학년도 · 다음 %{next_year}학년도"
       start: "%{year}학년도 준비 시작"
+      preparation:
+        teachers: "선생님 준비"
+        teacher_count: "%{count}명"
+        classrooms: "교실 준비"
+        classroom_count: "%{count}개"
+        homerooms: "담임 연결"
+        homeroom_count: "%{assigned} / %{total}"
     create:
       success: "다음 학년도 준비를 시작했습니다."
     errors:

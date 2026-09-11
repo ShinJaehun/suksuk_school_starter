@@ -14,8 +14,10 @@ module SchoolWorkspacePrepareable
     @planning_school_year = @school.planning_school_year
     @next_planning_year = active_school_year&.year&.+(1)
     planning_record = @planning_school_year || @school.school_years.build(status: :planning)
-    @can_manage_planning_school_year = policy(planning_record).show? ||
+    @can_prepare_planning_school_year = @planning_school_year.present? && policy(planning_record).prepare?
+    @can_manage_planning_school_year = @can_prepare_planning_school_year ||
       (@next_planning_year.present? && policy(planning_record).create?)
+    @planning_preparation_summary = planning_preparation_summary if @can_prepare_planning_school_year
   end
 
   def prepare_school_settings
@@ -29,5 +31,22 @@ module SchoolWorkspacePrepareable
 
   def active_school_year
     @active_school_year ||= @school.active_school_year
+  end
+
+  def planning_preparation_summary
+    active_teachers = @planning_school_year.users.teacher.active
+    active_classrooms = @planning_school_year.classrooms.active
+    assigned_classroom_count = HomeroomAssignment.current
+      .where(
+        classroom_id: active_classrooms.select(:id),
+        teacher_id: active_teachers.select(:id)
+      )
+      .count
+
+    {
+      teacher_count: active_teachers.count,
+      classroom_count: active_classrooms.count,
+      assigned_classroom_count: assigned_classroom_count
+    }
   end
 end
