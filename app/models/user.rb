@@ -81,6 +81,14 @@ class User < ApplicationRecord
     teacher? && active?
   end
 
+  def current_operational_teacher?
+    active_teacher? && school_year&.active? && annual_school&.active?
+  end
+
+  def current_operational_manager?
+    current_operational_teacher? && school_manager?
+  end
+
   def annual_school
     school_year&.school
   end

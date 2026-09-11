@@ -90,7 +90,9 @@ Rails.application.routes.draw do
   put "/classrooms/:id",
     to: "classrooms/settings#update"
 
-  resources :schools, only: %i[index show edit update]
+  resources :schools, only: %i[index show edit update] do
+    resources :school_years, only: :create
+  end
 
   # Defines the root path route ("/")
   root "home#index"

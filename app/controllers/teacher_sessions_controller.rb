@@ -36,7 +36,7 @@ class TeacherSessionsController < ApplicationController
   def active_school_year
     return unless @school.active?
 
-    @school.school_years.active.first
+    @school.active_school_year
   end
 
   def render_throttled

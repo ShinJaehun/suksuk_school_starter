@@ -147,7 +147,7 @@ class TeachersController < ApplicationController
   def classroom_candidates(school)
     return Classroom.none unless school && selected_membership_grade
 
-    classrooms = school.school_years.active.first&.classrooms&.active || Classroom.none
+    classrooms = school.active_school_year&.classrooms&.active || Classroom.none
     occupied_classroom_ids = HomeroomAssignment.current
       .where.not(teacher_id: @teacher&.id)
       .select(:classroom_id)
@@ -236,7 +236,7 @@ class TeachersController < ApplicationController
     return nil if raw_id.blank?
 
     classroom = if raw_id.match?(/\A[1-9]\d*\z/) && school && membership_grade
-                  school.school_years.active.first&.classrooms&.find_by(id: raw_id, grade: membership_grade)
+                  school.active_school_year&.classrooms&.find_by(id: raw_id, grade: membership_grade)
                 end
     classroom = nil if classroom&.inactive? && classroom != @teacher.assigned_classroom
     if classroom.nil? || (classroom.teacher && classroom.teacher != @teacher)

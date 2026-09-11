@@ -40,4 +40,29 @@
       </dd>
     </div>
   </dl>
+
+  <% if can_manage_planning_school_year %>
+    <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900"><%= t("school_years.planning.title") %></h2>
+          <% if planning_school_year %>
+            <p class="mt-1 text-sm text-slate-600">
+              <%= t("school_years.planning.existing", year: planning_school_year.year) %>
+            </p>
+          <% else %>
+            <p class="mt-1 text-sm text-slate-600">
+              <%= t("school_years.planning.next", current_year: active_school_year.year, next_year: next_planning_year) %>
+            </p>
+          <% end %>
+        </div>
+        <% unless planning_school_year %>
+          <%= button_to t("school_years.planning.start", year: next_planning_year),
+                school_school_years_path(school),
+                method: :post,
+                class: "inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700" %>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
 <% end %>

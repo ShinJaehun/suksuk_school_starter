@@ -11,6 +11,9 @@ class School < ApplicationRecord
   ].freeze
 
   has_many :school_years, dependent: :restrict_with_error
+  has_one :active_school_year, -> { active }, class_name: "SchoolYear"
+  has_one :planning_school_year, -> { planning }, class_name: "SchoolYear"
+  has_many :archived_school_years, -> { archived }, class_name: "SchoolYear"
 
   before_validation :assign_color_key, on: :create
 

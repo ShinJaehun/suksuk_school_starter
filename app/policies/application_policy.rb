@@ -39,7 +39,7 @@ class ApplicationPolicy
   end
 
   def teacher?
-    user.is_a?(User) && user.active_teacher?
+    user.is_a?(User) && user.current_operational_teacher?
   end
 
   def student?
@@ -65,7 +65,7 @@ class ApplicationPolicy
     end
 
     def teacher?
-      user.is_a?(User) && user.active_teacher?
+      user.is_a?(User) && user.current_operational_teacher?
     end
 
     def student?

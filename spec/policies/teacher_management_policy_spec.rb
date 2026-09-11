@@ -66,4 +66,20 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class.new(member, User).access?).to eq(false)
     expect(described_class.new(member, User.new(role: :teacher)).create?).to eq(false)
   end
+
+  it "rejects manager roles outside the current operational context" do
+    planning_manager = create(:user, :teacher,
+      school_year: create(:school_year, school: school, year: 2027),
+      login_id: "planning-manager", school_role: "manager")
+    archived_school = create(:school)
+    archived_manager = create(:user, :teacher,
+      school_year: create(:school_year, :archived, school: archived_school, year: 2025),
+      login_id: "archived-manager", school_role: "manager")
+    inactive_manager = manager.tap { |user| user.update!(active: false) }
+
+    [planning_manager, archived_manager, inactive_manager].each do |actor|
+      expect(described_class.new(actor, User).access?).to eq(false)
+      expect(described_class::Scope.new(actor, User).resolve).to be_empty
+    end
+  end
 end

@@ -37,7 +37,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def create?
-    admin? || (school_manager? && user.annual_school&.active?)
+    admin? || school_manager?
   end
 
   def new?
@@ -104,7 +104,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def school_manager?
-    teacher? && user.school_manager?
+    user.is_a?(User) && user.current_operational_manager?
   end
 
   def school_manager_of?(classroom)
@@ -112,7 +112,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def teacher_of?(classroom)
-    return false unless user.is_a?(User) && user.active_teacher?
+    return false unless user.is_a?(User) && user.current_operational_teacher?
 
     classroom.teacher == user
   end

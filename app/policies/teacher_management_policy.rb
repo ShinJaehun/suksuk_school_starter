@@ -3,7 +3,7 @@ class TeacherManagementPolicy < ApplicationPolicy
     def resolve
       return scope.teacher.joins(:school_year).merge(SchoolYear.active) if user&.admin?
 
-      return scope.none unless user&.active_teacher? && user.school_manager? && user.annual_school&.active?
+      return scope.none unless user&.current_operational_manager?
 
       scope.teacher
         .where(school_year_id: user.school_year_id)
@@ -38,6 +38,6 @@ class TeacherManagementPolicy < ApplicationPolicy
   private
 
   def school_manager?
-    user&.active_teacher? && user.school_manager? && user.annual_school&.active?
+    user&.current_operational_manager?
   end
 end

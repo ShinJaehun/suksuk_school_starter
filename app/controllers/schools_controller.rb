@@ -13,7 +13,7 @@ class SchoolsController < ApplicationController
     @schools = schools_scope.order(:name, :id).load
     authorize School
 
-    redirect_to school_path(@schools.first) and return if current_user.active_teacher? && @schools.one?
+    redirect_to school_path(@schools.first) and return if current_user.current_operational_teacher? && @schools.one?
 
     school_ids = @schools.map(&:id)
     active_year_ids = SchoolYear.active

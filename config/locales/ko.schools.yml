@@ -57,3 +57,19 @@ ko:
       back_to_school: "학교 운영 정보로 돌아가기"
       update:
         success: "학교 이름을 수정했습니다."
+
+  school_years:
+    status:
+      planning: "준비 중"
+    planning:
+      title: "다음 학년도 준비"
+      existing: "%{year}학년도 준비 중"
+      next: "현재 %{current_year}학년도 · 다음 %{next_year}학년도"
+      start: "%{year}학년도 준비 시작"
+    create:
+      success: "다음 학년도 준비를 시작했습니다."
+    errors:
+      active_year_required: "현재 운영 중인 학년도가 정확히 하나 있어야 합니다."
+      planning_year_exists: "이미 준비 중인 학년도가 있습니다."
+      year_exists: "다음 학년도와 같은 연도가 이미 존재합니다."
+      creation_conflict: "다음 학년도를 생성하지 못했습니다. 다시 확인해 주세요."

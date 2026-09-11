@@ -10,7 +10,7 @@ class ClassroomsController < ApplicationController
   def index
     # index는 policy_scope만 요구(verify_policy_scoped 훅 통과)
     classrooms_scope = policy_scope(Classroom)
-    if current_user.active_teacher? && !current_user_school_manager?
+    if current_user.current_operational_teacher? && !current_user_school_manager?
       assigned_landing_path = regular_teacher_landing_path_for(current_user)
       return redirect_to(assigned_landing_path) unless assigned_landing_path == classrooms_path
     end
@@ -29,7 +29,7 @@ class ClassroomsController < ApplicationController
     @classroom_student_counts = context.student_counts
     @classroom_student_previews = context.student_previews
     assigned_classroom_ids =
-      if current_user.active_teacher?
+      if current_user.current_operational_teacher?
         classroom_ids.include?(current_user.assigned_classroom&.id) ? [current_user.assigned_classroom.id].to_set : Set.new
       else
         Set.new
@@ -39,7 +39,7 @@ class ClassroomsController < ApplicationController
         classroom_ids.to_set
       elsif current_user_school_manager?
         classroom_ids.to_set
-      elsif current_user.active_teacher?
+      elsif current_user.current_operational_teacher?
         assigned_classroom_ids
       else
         Set.new
@@ -47,7 +47,7 @@ class ClassroomsController < ApplicationController
     @member_manageable_classroom_ids =
       if current_user.admin?
         classroom_ids.to_set
-      elsif current_user.active_teacher?
+      elsif current_user.current_operational_teacher?
         assigned_classroom_ids
       else
         Set.new
@@ -166,9 +166,7 @@ class ClassroomsController < ApplicationController
   end
 
   def current_user_school_manager?
-    current_user&.active_teacher? &&
-      current_user.school_manager? &&
-      current_user.annual_school&.active?
+    current_user&.current_operational_manager?
   end
 
   def prepare_school_filter
@@ -196,7 +194,7 @@ class ClassroomsController < ApplicationController
       return if school_id.blank?
 
       school = policy_scope(School).active.find_by(id: school_id)
-      @classroom.school_year = school&.school_years&.active&.first
+      @classroom.school_year = school&.active_school_year
     elsif current_user_school_manager?
       @classroom.school_year = current_user.school_year
     end

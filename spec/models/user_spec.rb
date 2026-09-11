@@ -1,6 +1,46 @@
 require "rails_helper"
 
 RSpec.describe User, type: :model do
+  describe "operational teacher predicates" do
+    it "distinguishes an active teacher account from a current operational teacher" do
+      school = create(:school)
+      active_year = create(:school_year, :active, school: school, year: 2026)
+      active_teacher = create(:user, :teacher, school_year: active_year,
+        login_id: "active-teacher", school_role: "member")
+      inactive_teacher = create(:user, :teacher, school_year: active_year,
+        login_id: "inactive-teacher", school_role: "member", active: false)
+      planning_teacher = create(:user, :teacher,
+        school_year: create(:school_year, school: school, year: 2027),
+        login_id: "planning-teacher", school_role: "member")
+      archived_teacher = create(:user, :teacher,
+        school_year: create(:school_year, :archived, school: school, year: 2025),
+        login_id: "archived-teacher", school_role: "member")
+
+      expect(active_teacher).to be_active_teacher
+      expect(active_teacher).to be_current_operational_teacher
+      expect(inactive_teacher).not_to be_active_teacher
+      expect(inactive_teacher).not_to be_current_operational_teacher
+      expect(planning_teacher).to be_active_teacher
+      expect(planning_teacher).not_to be_current_operational_teacher
+      expect(archived_teacher).to be_active_teacher
+      expect(archived_teacher).not_to be_current_operational_teacher
+
+      school.update!(active: false)
+      expect(active_teacher).not_to be_current_operational_teacher
+    end
+
+    it "requires every operational condition for current manager authority" do
+      school = create(:school)
+      manager = create(:user, :teacher, :active_annual_teacher,
+        annual_school: school, annual_school_role: "manager")
+
+      expect(manager).to be_current_operational_manager
+
+      manager.school_year.update!(status: :archived)
+      expect(manager).not_to be_current_operational_manager
+    end
+  end
+
   describe "role-specific email requirements" do
     it "allows a teacher without email" do
       expect(build(:user, :teacher, :active_annual_teacher,

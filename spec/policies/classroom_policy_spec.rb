@@ -211,6 +211,17 @@ RSpec.describe ClassroomPolicy do
         expect(policy.manage_members?).to eq(false)
       end
     end
+
+    it "rejects a manager role outside the current operational SchoolYear" do
+      planning_year = create(:school_year, school: school, year: 2027)
+      planning_manager = create(:user, :teacher, school_year: planning_year,
+        login_id: "planning-manager", school_role: "manager")
+      policy = described_class.new(planning_manager, classroom)
+
+      expect(policy.show?).to eq(false)
+      expect(policy.manage_structure?).to eq(false)
+      expect(described_class::Scope.new(planning_manager, Classroom).resolve).to be_empty
+    end
   end
 
   describe "lifecycle permissions" do

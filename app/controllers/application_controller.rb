@@ -84,11 +84,9 @@ class ApplicationController < ActionController::Base
       return @navigation_context = {}
     end
 
-    return @navigation_context unless current_user.active_teacher?
+    return @navigation_context unless current_user.current_operational_teacher?
 
-    school = current_user.annual_school
-    active_school = school if school&.active?
-    manager = current_user if active_school && current_user.school_manager?
+    manager = current_user if current_user.current_operational_manager?
 
     @navigation_context.merge!(
       manager: manager,
@@ -97,7 +95,7 @@ class ApplicationController < ActionController::Base
   end
 
   def teacher_nav_classrooms
-    return [] unless current_user&.active_teacher?
+    return [] unless current_user&.current_operational_teacher?
     return @teacher_nav_classrooms if defined?(@teacher_nav_classrooms)
 
     classroom = current_user.assigned_classroom
@@ -111,7 +109,7 @@ class ApplicationController < ActionController::Base
 
   def expire_ineligible_teacher_session
     return unless current_user&.teacher?
-    return if current_user.active? && current_user.school_year&.active? && current_user.school_year.school.active?
+    return if current_user.current_operational_teacher?
 
     school = current_user.school_year&.school
     message_key = current_user.inactive? ? 'devise.failure.inactive' : 'users.sessions.teacher_ineligible'
@@ -174,7 +172,7 @@ class ApplicationController < ActionController::Base
   def role_landing_path_for(user)
     return schools_path if user.admin?
 
-    return school_path(user.annual_school) if user.school_manager? && user.annual_school&.active?
+    return school_path(user.annual_school) if user.current_operational_manager?
 
     regular_teacher_landing_path_for(user)
   end

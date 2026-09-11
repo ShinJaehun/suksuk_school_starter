@@ -83,6 +83,16 @@ RSpec.describe SchoolPolicy do
       expect(other_policy.manage_operations?).to eq(false)
     end
 
+    it "rejects a manager role when its SchoolYear is not active" do
+      planning_year = create(:school_year, school: school, year: 2027)
+      planning_manager = create(:user, :teacher, school_year: planning_year,
+        login_id: "planning-manager", school_role: "manager")
+
+      expect(described_class::Scope.new(planning_manager, School).resolve).to be_empty
+      expect(described_class.new(planning_manager, school).show?).to eq(false)
+      expect(described_class.new(planning_manager, school).manage_operations?).to eq(false)
+    end
+
     it "allows only an admin to manage school managers" do
       admin = create(:user, :admin)
       manager = annual_teacher(school: school, school_role: "manager")

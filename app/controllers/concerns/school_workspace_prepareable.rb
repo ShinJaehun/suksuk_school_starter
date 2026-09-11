@@ -11,6 +11,11 @@ module SchoolWorkspacePrepareable
     @classroom_count = active_school_year&.classrooms&.count.to_i
     @teacher_count = active_school_teachers.active.count
     @managers = active_school_teachers.active.where(school_role: "manager").order(:id)
+    @planning_school_year = @school.planning_school_year
+    @next_planning_year = active_school_year&.year&.+(1)
+    planning_record = @planning_school_year || @school.school_years.build(status: :planning)
+    @can_manage_planning_school_year = policy(planning_record).show? ||
+      (@next_planning_year.present? && policy(planning_record).create?)
   end
 
   def prepare_school_settings
@@ -23,6 +28,6 @@ module SchoolWorkspacePrepareable
   end
 
   def active_school_year
-    @active_school_year ||= @school.school_years.active.first
+    @active_school_year ||= @school.active_school_year
   end
 end
