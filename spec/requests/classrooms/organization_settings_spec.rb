@@ -321,17 +321,12 @@ RSpec.describe 'Classroom organization settings', type: :request do
     expect(classroom.reload.school_year.school).to eq(school)
   end
 
-  it 'treats an invalid admin classroom school filter as the full list' do
-    classroom = create(:classroom, annual_school: school, class_label: '새싹 학급')
-    other_classroom = create(:classroom, annual_school: create(:school), class_label: '다른 학급')
+  it 'fails closed for an invalid admin classroom School context' do
     sign_in admin
 
     get classrooms_path, params: { school_id: 'missing' }
 
-    expect(response).to have_http_status(:ok)
-    expect(response.body).to include(classroom.class_label, other_classroom.class_label)
-    expect(response.body).to include(classroom_path(classroom), classroom_path(other_classroom))
-    expect(response.body).not_to include('selected="selected" value="missing"')
+    expect(response).to have_http_status(:not_found)
   end
 
   it 'allows a manager to show an unassigned classroom in their school' do

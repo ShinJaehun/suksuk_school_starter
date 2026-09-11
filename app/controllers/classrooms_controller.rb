@@ -8,17 +8,19 @@ class ClassroomsController < ApplicationController
   before_action :set_lifecycle_classroom, only: %i[deactivate reactivate]
 
   def index
-    # index는 policy_scope만 요구(verify_policy_scoped 훅 통과)
-    classrooms_scope = policy_scope(Classroom)
     if current_user.current_operational_teacher? && !current_user_school_manager?
+      policy_scope(Classroom)
+
+      reject_ordinary_teacher_context_params!
       assigned_landing_path = regular_teacher_landing_path_for(current_user)
       return redirect_to(assigned_landing_path) unless assigned_landing_path == classrooms_path
     end
 
-    prepare_school_filter if current_user.admin?
-    if current_user.admin? && @selected_school
-      classrooms_scope = classrooms_scope.where(school_years: { school_id: @selected_school.id })
-    end
+    prepare_classroom_index_context if current_user.admin? || current_user_school_manager?
+    classrooms_scope = policy_scope(
+      classroom_index_scope,
+      policy_scope_class: ClassroomPolicy::IndexScope
+    )
     @selected_grade = grade_filter
     classrooms_scope = classrooms_scope.where(grade: @selected_grade) if @selected_grade
     context = Classrooms::IndexContext.new(classrooms_scope: classrooms_scope)
@@ -35,7 +37,9 @@ class ClassroomsController < ApplicationController
         Set.new
       end
     @manageable_classroom_ids =
-      if current_user.admin?
+      if @classroom_context_read_only
+        Set.new
+      elsif current_user.admin?
         classroom_ids.to_set
       elsif current_user_school_manager?
         classroom_ids.to_set
@@ -45,7 +49,9 @@ class ClassroomsController < ApplicationController
         Set.new
       end
     @member_manageable_classroom_ids =
-      if current_user.admin?
+      if @classroom_context_read_only
+        Set.new
+      elsif current_user.admin?
         classroom_ids.to_set
       elsif current_user.current_operational_teacher?
         assigned_classroom_ids
@@ -169,14 +175,80 @@ class ClassroomsController < ApplicationController
     current_user&.current_operational_manager?
   end
 
-  def prepare_school_filter
-    @filter_schools = policy_scope(School).active.order(:name, :id).load
-    @selected_school = @filter_schools.detect { |school| school.id == school_filter_id }
+  def prepare_classroom_index_context
+    if current_user.admin? && params[:school_year_id].present? && params[:school_id].blank?
+      raise ActiveRecord::RecordNotFound
+    end
+
+    @show_school_year_selector = true
+    @filter_schools = classroom_context_schools
+    @selected_school = selected_classroom_context_school
+    @school_year_options = allowed_classroom_context_years(@selected_school)
+    @selected_school_year = selected_classroom_context_year
+    @classroom_context_read_only = @selected_school_year.present? &&
+                                   (!@selected_school_year.active? || @selected_school.inactive?)
   end
 
-  def school_filter_id
-    value = params[:school_id].to_s
-    return nil unless value.match?(/\A[1-9]\d*\z/)
+  def classroom_context_schools
+    return policy_scope(School).order(:name, :id).load if current_user.admin?
+
+    [current_user.annual_school]
+  end
+
+  def selected_classroom_context_school
+    if current_user.admin?
+      return nil if params[:school_id].blank?
+
+      return policy_scope(School).find(positive_classroom_context_id!(:school_id))
+    end
+
+    school = current_user.annual_school
+    if params[:school_id].present? && positive_classroom_context_id!(:school_id) != school.id
+      raise ActiveRecord::RecordNotFound
+    end
+
+    school
+  end
+
+  def allowed_classroom_context_years(school)
+    return SchoolYear.none unless school
+    return school.school_years.order(year: :desc) if current_user.admin?
+
+    years = [current_user.school_year]
+    planning_year = school.planning_school_year
+    years << planning_year if planning_year&.year == current_user.school_year.year + 1
+    SchoolYear.where(id: years.map(&:id)).order(year: :desc)
+  end
+
+  def selected_classroom_context_year
+    if params[:school_year_id].present?
+      raise ActiveRecord::RecordNotFound unless @selected_school
+
+      return @school_year_options.find(positive_classroom_context_id!(:school_year_id))
+    end
+
+    return nil if current_user.admin? && @selected_school.nil?
+
+    @school_year_options.find_by!(status: :active)
+  end
+
+  def classroom_index_scope
+    return Classroom.where(school_year_id: @selected_school_year.id) if @selected_school_year
+
+    Classroom.joins(school_year: :school)
+             .merge(SchoolYear.active)
+             .merge(School.active)
+  end
+
+  def reject_ordinary_teacher_context_params!
+    return if params[:school_id].blank? && params[:school_year_id].blank?
+
+    raise ActiveRecord::RecordNotFound
+  end
+
+  def positive_classroom_context_id!(key)
+    value = params[key].to_s
+    raise ActiveRecord::RecordNotFound unless value.match?(/\A[1-9]\d*\z/)
 
     value.to_i
   end

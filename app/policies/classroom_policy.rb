@@ -25,6 +25,19 @@ class ClassroomPolicy < ApplicationPolicy
     end
   end
 
+  class IndexScope < Scope
+    def resolve
+      return scope.all if admin?
+
+      if user&.current_operational_manager?
+        return scope.joins(:school_year)
+                    .where(school_years: { school_id: user.annual_school.id })
+      end
+
+      super
+    end
+  end
+
   def index?
     admin? || teacher? || student?
   end

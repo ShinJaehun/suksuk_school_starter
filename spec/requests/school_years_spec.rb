@@ -119,6 +119,11 @@ RSpec.describe 'Planning SchoolYears', type: :request do
         %(a[href="#{teachers_path(school_id: school.id, school_year_id: planning_year.id)}"])
       )
     ).to be_present
+    expect(
+      document.at_css(
+        %(a[href="#{classrooms_path(school_id: school.id, school_year_id: planning_year.id)}"])
+      )
+    ).to be_present
   end
 
   it 'shows planning preparation only to an authorized planning operator' do

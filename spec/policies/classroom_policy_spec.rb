@@ -51,6 +51,42 @@ RSpec.describe ClassroomPolicy do
       expect(Pundit.policy_scope!(student, Classroom)).to be_empty
     end
 
+    it "lets the index scope include an admin-selected SchoolYear without widening mutation scope" do
+      admin = create(:user, :admin)
+      planning_year = create(:school_year,
+        school: school,
+        year: classroom.school_year.year + 1)
+      archived_year = create(:school_year, :archived,
+        school: school,
+        year: classroom.school_year.year - 1)
+      planning_classroom = create(:classroom, school_year: planning_year)
+      archived_classroom = create(:classroom, school_year: archived_year)
+
+      expect(described_class::IndexScope.new(admin, Classroom).resolve).to include(
+        classroom,
+        planning_classroom,
+        archived_classroom
+      )
+      expect(described_class::Scope.new(admin, Classroom).resolve).not_to include(
+        planning_classroom,
+        archived_classroom
+      )
+    end
+
+    it "limits a manager index scope to their own school across allowed controller contexts" do
+      manager = annual_teacher(school: school, school_role: "manager")
+      planning_year = create(:school_year,
+        school: school,
+        year: manager.school_year.year + 1)
+      planning_classroom = create(:classroom, school_year: planning_year)
+
+      expect(described_class::IndexScope.new(manager, Classroom).resolve).to include(
+        classroom,
+        planning_classroom
+      )
+      expect(described_class::IndexScope.new(manager, Classroom).resolve).not_to include(other_classroom)
+    end
+
     it "does not grant classroom scope to a Student in an inactive classroom" do
       student = create(:student, classroom: classroom)
       classroom.update!(active: false)

@@ -23,6 +23,10 @@ module SchoolWorkspacePrepareable
         school_id: @school.id,
         school_year_id: @planning_school_year.id
       )
+      @planning_classroom_path = classrooms_path(
+        school_id: @school.id,
+        school_year_id: @planning_school_year.id
+      )
     end
   end
 
