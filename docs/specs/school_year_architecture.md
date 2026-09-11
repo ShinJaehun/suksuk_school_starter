@@ -344,15 +344,17 @@ Reversal은 rollover 직후의 제한된 사고 복구만 대상으로 한다. �
 - 기존 PIN throttling, classroom token과 student session TTL 경계를 유지한다.
 - manager에게 `/admin/*`를 개방하지 않으며 URL과 parameter 조작으로 school/year scope를 넓힐 수 없다.
 
-## Bulk bootstrap 영역
+## SchoolYear-aware operation surface
 
-`/teachers`와 `/classrooms`는 현재 active year의 일상적인 개별 운영 surface다.
+`/teachers`와 `/classrooms`의 기본 진입은 현재 active year의 일상 운영 context다. Planning 또는 archived year를 기본 query에 섞지 않는다.
 
-`/admin/teachers`는 장기적으로 global admin의 planning SchoolYear teacher User bulk bootstrap을 담당한다. 이름과 `login_id`, 임시 비밀번호, annual grade와 구성 상태를 관리하며 초기 bulk는 member teacher 생성으로 제한한다. Manager 지정·교체·해제는 bulk row option과 분리된 global-admin-only planning operation으로 유지한다. 각 새 User는 임시 credential과 강제 password 변경 상태로 시작한다.
+Global admin이 명시적으로 School과 SchoolYear를 선택하면 같은 teacher/classroom surface에서 planning, active와 archived context를 조회할 수 있다. Current operational manager는 자기 School의 current active year와 바로 다음 planning year를 같은 surface에서 관리하며 기존 historical 계약의 archived 자료는 read-only로 조회한다. Ordinary teacher는 자기 operational year의 기존 scope만 접근한다.
 
-`/admin/classrooms`는 장기적으로 global admin의 planning-year classroom bootstrap을 담당한다. grade와 class_label 일괄 구성, 담임 배정과 중복·누락 검증을 지원할 수 있다.
+Planning context에서는 member teacher bulk, temporary credential, Classroom bulk와 담임 연결을 준비할 수 있다. Archived context에서는 mutation control을 노출하지 않고 policy와 domain boundary도 모든 mutation을 거부한다. Planning 전용 `/planning/teachers`, `/admin/teachers`, `/admin/classrooms`, 별도 dashboard와 lifecycle별 controller/view 복제는 만들지 않는다.
 
-학교 manager에게 `/admin/*` 권한을 주지 않는다. Manager용 active-year school-wide operation과 planning bootstrap은 일반 school-operations namespace 안에서 자기 School로 제한한다. 두 surface가 같은 backend operation을 공유할 수 있지만 authorization entry point는 분리한다. 구체 route와 UI는 후속 spec에서 정한다.
+SchoolYear context는 URL parameter만으로 결정하지 않는다. Actor에게 허용된 School scope에서 SchoolYear ownership과 status를 server-side로 resolve하며, context가 생략되면 active year를 사용한다. 명시된 context가 잘못되거나 권한 밖이면 다른 year로 fallback하지 않는다.
+
+Planning teacher bulk는 member만 생성한다. Current operational manager는 planning member 중 후임 manager 후보를 제안·변경·해제할 수 있지만 이는 role이나 authority를 바꾸지 않는다. Manager 지정·교체·해제는 global admin이 별도 confirmation으로 최종 확정한다. 각 새 User는 temporary credential과 강제 password 변경 상태로 시작한다.
 
 ## 데이터 무결성 invariants
 
@@ -382,7 +384,8 @@ Reversal은 rollover 직후의 제한된 사고 복구만 대상으로 한다. �
 - active-year teacher login은 SchoolYear selector 없이 `login_id + password`만 받는다.
 - archived login은 SchoolYear context를 명시하고 archived 화면 상위에 해당 학년도와 읽기 전용 상태를 표시한다.
 - year selector, planning 구성, archived 조회와 여러 연도 비교처럼 필요한 context에서만 학년도를 표시한다.
-- planning 상태와 후속 준비 entry는 School operation 화면에서 학년도와 함께 명확히 표시할 수 있으며 별도 SchoolYear dashboard는 필수가 아니다.
+- planning 상태와 후속 준비 entry는 School operation 화면에서 학년도와 함께 명확히 표시하며 별도 SchoolYear dashboard는 두지 않는다.
+- School overview의 다음 학년도 준비 카드는 teacher, Classroom, 담임 연결 수와 manager 제안/확정 상태를 표시하며 별도 planning dashboard로 연결하지 않는다.
 - archived 화면은 읽기 전용임을 한 번 분명히 표시하고 mutation control을 노출하지 않는다.
 - `class_label` 저장값에는 `반`을 포함하지 않고 presentation layer가 suffix를 붙인다.
 - 과거 자료의 표시 가능성과 실제 접근 권한을 혼동하지 않는다.
