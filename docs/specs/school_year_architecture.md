@@ -260,6 +260,8 @@ HomeroomAssignment
 - 종료된 assignment는 보존하며 새 assignment가 과거 row를 덮어쓰지 않는다.
 - 담임 교체는 기존 assignment 종료와 새 assignment 시작을 한 transaction에서 수행한다.
 
+위 history semantics는 active SchoolYear의 실제 운영 이력과 archived history에 적용한다. Planning HomeroomAssignment는 아직 실제 운영 이력이 아니므로 `started_on`을 해당 SchoolYear의 3월 1일로 두고, planning 중 연결 변경·해제 또는 teacher/Classroom 준비 제외 시 기존 assignment를 삭제하여 `ended_on` history를 만들지 않는다. Rollover로 SchoolYear가 active가 된 뒤에는 planning 삭제 semantics를 적용하지 않는다.
+
 현재 `Classroom.teacher_id`는 HomeroomAssignment 이전 완료 후 제거 대상이다.
 
 ## Student identity와 소속 방향
@@ -346,7 +348,7 @@ Reversal은 rollover 직후의 제한된 사고 복구만 대상으로 한다. �
 
 `/teachers`와 `/classrooms`는 현재 active year의 일상적인 개별 운영 surface다.
 
-`/admin/teachers`는 장기적으로 global admin의 planning SchoolYear teacher User bulk bootstrap을 담당한다. 이름과 `login_id`, 임시 비밀번호, annual grade/role과 구성 상태를 관리하며 manager 지정은 global admin authority로 유지한다. 각 새 User는 임시 credential과 강제 password 변경 상태로 시작한다.
+`/admin/teachers`는 장기적으로 global admin의 planning SchoolYear teacher User bulk bootstrap을 담당한다. 이름과 `login_id`, 임시 비밀번호, annual grade와 구성 상태를 관리하며 초기 bulk는 member teacher 생성으로 제한한다. Manager 지정·교체·해제는 bulk row option과 분리된 global-admin-only planning operation으로 유지한다. 각 새 User는 임시 credential과 강제 password 변경 상태로 시작한다.
 
 `/admin/classrooms`는 장기적으로 global admin의 planning-year classroom bootstrap을 담당한다. grade와 class_label 일괄 구성, 담임 배정과 중복·누락 검증을 지원할 수 있다.
 

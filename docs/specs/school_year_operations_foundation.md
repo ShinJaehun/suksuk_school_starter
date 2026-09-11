@@ -226,8 +226,10 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 
 ### B. Planning bulk bootstrap
 
-- B1: planning annual teacher User, temporary credential과 HomeroomAssignment 준비
-- B2: planning Classroom과 Student 명단 준비
+- B1: planning annual teacher User와 temporary credential 준비
+- B2: planning Classroom 준비
+- B3: planning HomeroomAssignment 준비
+- Planning Student 명단 준비는 Phase B에 포함하지 않고 teacher/Classroom/담임 계약이 안정된 뒤 별도 bounded phase로 진행한다.
 - Global admin의 `/admin/teachers`, `/admin/classrooms` bulk surface와 manager의 own-School 일반 operation surface를 분리한다.
 - 기존 credential/teacher/classroom domain operation을 재사용할 수 있는지 각 bounded spec에서 검토하되 active-year query를 넓히지 않는다.
 
