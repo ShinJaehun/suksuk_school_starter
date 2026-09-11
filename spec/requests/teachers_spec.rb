@@ -16,7 +16,7 @@ RSpec.describe 'Teacher operations', type: :request do
            annual_grade: grade)
   end
 
-  it 'allows admins and managers but rejects regular teachers' do
+  it 'allows admins and managers to read the index' do
     sign_in create(:user, :admin)
     get teachers_path
     expect(response).to have_http_status(:ok)
@@ -24,10 +24,14 @@ RSpec.describe 'Teacher operations', type: :request do
     sign_in manager
     get teachers_path
     expect(response).to have_http_status(:ok)
+  end
 
+  it 'rejects a current ordinary teacher from the teacher index' do
     member = create(:user, :teacher, :active_annual_teacher, annual_school: school)
     sign_in member
+
     get teachers_path
+
     expect(response).to redirect_to(root_path)
   end
 
@@ -93,6 +97,92 @@ RSpec.describe 'Teacher operations', type: :request do
       patch reissue_temporary_password_teacher_path(teacher)
       expect(response).to have_http_status(:not_found)
     end
+  end
+
+  it 'lets an admin explicitly read active, planning, and archived teacher contexts' do
+    admin = create(:user, :admin)
+    active_teacher = annual_teacher(school: school)
+    active_teacher.update!(name: '현재 학년도 교사')
+    active_year = active_teacher.school_year
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    archived_year = create(:school_year, :archived, school: school, year: active_year.year - 1)
+    planning_teacher = create(:user, :teacher, school_year: planning_year,
+                                               name: '다음 학년도 교사', login_id: 'planning-context-teacher', school_role: 'member')
+    archived_teacher = create(:user, :teacher, school_year: archived_year,
+                                               name: '지난 학년도 교사', login_id: 'archived-context-teacher', school_role: 'member')
+    sign_in admin
+
+    get teachers_path, params: { school_id: school.id, school_year_id: active_year.id }
+    expect(response.body).to include(active_teacher.name)
+    expect(response.body).not_to include(planning_teacher.name, archived_teacher.name)
+    expect(response.body).to include(I18n.t('admin.teachers.index.add_teacher'))
+
+    get teachers_path, params: { school_id: school.id, school_year_id: planning_year.id }
+    expect(response.body).to include(planning_teacher.name, '준비 중')
+    expect(response.body).not_to include(active_teacher.name, archived_teacher.name)
+    expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
+    expect(response.body).not_to include(I18n.t('admin.teachers.index.add_teacher'))
+    expect(response.body).not_to include(edit_teacher_path(planning_teacher))
+
+    get teachers_path, params: { school_id: school.id, school_year_id: archived_year.id }
+    expect(response.body).to include(archived_teacher.name, '지난 학년도')
+    expect(response.body).not_to include(active_teacher.name, planning_teacher.name)
+    expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
+    expect(response.body).not_to include(edit_teacher_path(archived_teacher))
+  end
+
+  it 'lets a current manager read only their active and immediately following planning contexts' do
+    current_manager = manager
+    active_year = current_manager.school_year
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    planning_teacher = create(:user, :teacher, school_year: planning_year,
+                                               name: '준비 교사', login_id: 'manager-planning-teacher', school_role: 'member')
+    archived_year = create(:school_year, :archived, school: school, year: active_year.year - 1)
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school, year: active_year.year)
+    other_planning_year = create(:school_year, school: other_school, year: other_active_year.year + 1)
+    sign_in current_manager
+
+    get teachers_path, params: { school_year_id: planning_year.id }
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(planning_teacher.name, '준비 중')
+    expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
+    expect(response.body).not_to include(I18n.t('admin.teachers.index.add_teacher'))
+
+    get teachers_path, params: { school_year_id: archived_year.id }
+    expect(response).to have_http_status(:not_found)
+
+    get teachers_path, params: {
+      school_id: other_school.id,
+      school_year_id: other_planning_year.id
+    }
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed for a malformed school parameter' do
+    sign_in create(:user, :admin)
+
+    get teachers_path, params: { school_id: 'invalid' }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed when an admin supplies a SchoolYear without a School' do
+    other_school = create(:school)
+    other_year = create(:school_year, :active, school: other_school)
+    sign_in create(:user, :admin)
+
+    get teachers_path, params: { school_year_id: other_year.id }
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed for a cross-school SchoolYear parameter' do
+    other_school = create(:school)
+    other_year = create(:school_year, :active, school: other_school)
+    sign_in create(:user, :admin)
+
+    get teachers_path, params: { school_id: school.id, school_year_id: other_year.id }
+    expect(response).to have_http_status(:not_found)
   end
 
   it 'filters the admin index by school' do

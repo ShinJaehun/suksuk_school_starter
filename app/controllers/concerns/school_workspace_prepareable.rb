@@ -18,6 +18,12 @@ module SchoolWorkspacePrepareable
     @can_manage_planning_school_year = @can_prepare_planning_school_year ||
       (@next_planning_year.present? && policy(planning_record).create?)
     @planning_preparation_summary = planning_preparation_summary if @can_prepare_planning_school_year
+    if @can_prepare_planning_school_year
+      @planning_teacher_path = teachers_path(
+        school_id: @school.id,
+        school_year_id: @planning_school_year.id
+      )
+    end
   end
 
   def prepare_school_settings

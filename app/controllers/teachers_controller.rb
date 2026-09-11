@@ -1,6 +1,7 @@
 class TeachersController < ApplicationController
   before_action :authenticate_user!
-  before_action :authorize_teacher_management!
+  before_action :authorize_teacher_index!, only: :index
+  before_action :authorize_teacher_management!, except: :index
   before_action :set_teacher, only: %i[edit update deactivate reactivate reissue_temporary_password]
 
   def index
@@ -107,29 +108,106 @@ class TeachersController < ApplicationController
     authorize User, :access?, policy_class: TeacherManagementPolicy
   end
 
+  def authorize_teacher_index!
+    authorize User, :index?, policy_class: TeacherManagementPolicy
+  end
+
   def set_teacher
     @teacher = teacher_management_scope.find(params[:id])
   end
 
   def prepare_index
     @teacher_status = params[:status].presence_in(%w[active inactive all]) || 'active'
-    @filter_schools = manageable_schools
-    @selected_school = if current_user.admin?
-                         @filter_schools.find do |school|
-                           school.id == school_filter_id
-                         end
-                       else
-                         manager_school
-                       end
-    scope = teacher_management_scope.with_attached_avatar.includes(
+    prepare_teacher_index_context
+    scope = policy_scope(
+      teacher_index_scope,
+      policy_scope_class: TeacherManagementPolicy::IndexScope
+    ).with_attached_avatar.includes(
       school_year: :school,
       assigned_classroom: { school_year: :school }
     )
     scope = scope.where(active: @teacher_status == 'active') unless @teacher_status == 'all'
-    if @selected_school
-      scope = scope.joins(:school_year).where(school_years: { school_id: @selected_school.id })
-    end
     @teacher_rows = scope.order(:created_at).map { |teacher| teacher_row(teacher) }
+  end
+
+  def prepare_teacher_index_context
+    if current_user.admin? &&
+       params[:school_year_id].present? &&
+       params[:school_id].blank?
+      raise ActiveRecord::RecordNotFound
+    end
+
+    @show_school_year_selector = current_user.admin? || current_user.current_operational_manager?
+    @filter_schools = teacher_context_schools
+    @selected_school = selected_teacher_context_school
+    @school_year_options = allowed_teacher_context_years(@selected_school)
+    @selected_school_year = selected_teacher_context_year
+    @teacher_context_mutable = teacher_context_mutable?
+  end
+
+  def teacher_context_schools
+    return policy_scope(School).order(:name, :id).load if current_user.admin?
+
+    [current_user.annual_school]
+  end
+
+  def selected_teacher_context_school
+    if current_user.admin?
+      return nil if params[:school_id].blank?
+
+      return policy_scope(School).find(positive_id_param!(:school_id))
+    end
+
+    school = current_user.annual_school
+    raise ActiveRecord::RecordNotFound if params[:school_id].present? && positive_id_param!(:school_id) != school.id
+
+    school
+  end
+
+  def allowed_teacher_context_years(school)
+    return SchoolYear.none unless school
+    return school.school_years.order(year: :desc) if current_user.admin?
+
+    if current_user.current_operational_manager?
+      years = [current_user.school_year]
+      planning_year = school.planning_school_year
+      years << planning_year if planning_year&.year == current_user.school_year.year + 1
+      return SchoolYear.where(id: years.map(&:id)).order(year: :desc)
+    end
+
+    SchoolYear.where(id: current_user.school_year_id)
+  end
+
+  def selected_teacher_context_year
+    if params[:school_year_id].present?
+      raise ActiveRecord::RecordNotFound unless @selected_school
+
+      return @school_year_options.find(positive_id_param!(:school_year_id))
+    end
+
+    return nil if current_user.admin? && @selected_school.nil?
+
+    @school_year_options.find_by!(status: :active)
+  end
+
+  def teacher_index_scope
+    return User.teacher.where(school_year_id: @selected_school_year.id) if @selected_school_year
+
+    User.teacher.joins(:school_year).merge(SchoolYear.active)
+  end
+
+  def teacher_context_mutable?
+    return true if current_user.admin? && @selected_school_year.nil?
+    return false unless @selected_school_year&.active?
+
+    current_user.admin? || current_user.current_operational_manager?
+  end
+
+  def positive_id_param!(key)
+    value = params[key].to_s
+    raise ActiveRecord::RecordNotFound unless value.match?(/\A[1-9]\d*\z/)
+
+    value.to_i
   end
 
   def prepare_form
@@ -149,8 +227,8 @@ class TeachersController < ApplicationController
 
     classrooms = school.active_school_year&.classrooms&.active || Classroom.none
     occupied_classroom_ids = HomeroomAssignment.current
-      .where.not(teacher_id: @teacher&.id)
-      .select(:classroom_id)
+                                               .where.not(teacher_id: @teacher&.id)
+                                               .select(:classroom_id)
     classrooms.where(grade: selected_membership_grade)
               .where.not(id: occupied_classroom_ids)
               .order(:class_label, :id)
@@ -314,7 +392,8 @@ class TeachersController < ApplicationController
       school: teacher.annual_school,
       membership_grade: teacher.grade,
       role: teacher.school_role,
-      classroom: teacher.assigned_classroom
+      classroom: teacher.assigned_classroom,
+      manageable: @teacher_context_mutable && TeacherManagementPolicy.new(current_user, teacher).update_profile?
     }
   end
 end

@@ -1,4 +1,16 @@
 class TeacherManagementPolicy < ApplicationPolicy
+  class IndexScope < ApplicationPolicy::Scope
+    def resolve
+      return scope.teacher if user&.admin?
+
+      return scope.none unless user&.current_operational_manager?
+
+      scope.teacher
+           .joins(:school_year)
+           .where(school_years: { school_id: user.annual_school.id })
+    end
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.teacher.joins(:school_year).merge(SchoolYear.active) if user&.admin?
@@ -6,8 +18,12 @@ class TeacherManagementPolicy < ApplicationPolicy
       return scope.none unless user&.current_operational_manager?
 
       scope.teacher
-        .where(school_year_id: user.school_year_id)
+           .where(school_year_id: user.school_year_id)
     end
+  end
+
+  def index?
+    access?
   end
 
   def access?

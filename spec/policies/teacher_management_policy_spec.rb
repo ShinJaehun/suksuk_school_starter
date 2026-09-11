@@ -15,10 +15,17 @@ RSpec.describe TeacherManagementPolicy do
   it 'allows admins and managers to access and create' do
     admin = create(:user, :admin)
 
+    expect(described_class.new(admin, User).index?).to eq(true)
     expect(described_class.new(admin, User).access?).to eq(true)
     expect(described_class.new(admin, User.new(role: :teacher)).create?).to eq(true)
     expect(described_class.new(manager, User).access?).to eq(true)
     expect(described_class.new(manager, User.new(role: :teacher)).create?).to eq(true)
+  end
+
+  it 'does not allow a current ordinary teacher to read the teacher index' do
+    expect(described_class.new(member, User).index?).to eq(false)
+    expect(described_class.new(member, User).access?).to eq(false)
+    expect(described_class.new(member, User.new(role: :teacher)).create?).to eq(false)
   end
 
   it 'limits manager profile management and scope to their school' do
@@ -62,22 +69,18 @@ RSpec.describe TeacherManagementPolicy do
     )
   end
 
-  it 'rejects regular teachers' do
-    expect(described_class.new(member, User).access?).to eq(false)
-    expect(described_class.new(member, User.new(role: :teacher)).create?).to eq(false)
-  end
-
-  it "rejects manager roles outside the current operational context" do
+  it 'rejects manager roles outside the current operational context' do
     planning_manager = create(:user, :teacher,
-      school_year: create(:school_year, school: school, year: 2027),
-      login_id: "planning-manager", school_role: "manager")
+                              school_year: create(:school_year, school: school, year: 2027),
+                              login_id: 'planning-manager', school_role: 'manager')
     archived_school = create(:school)
     archived_manager = create(:user, :teacher,
-      school_year: create(:school_year, :archived, school: archived_school, year: 2025),
-      login_id: "archived-manager", school_role: "manager")
+                              school_year: create(:school_year, :archived, school: archived_school, year: 2025),
+                              login_id: 'archived-manager', school_role: 'manager')
     inactive_manager = manager.tap { |user| user.update!(active: false) }
 
     [planning_manager, archived_manager, inactive_manager].each do |actor|
+      expect(described_class.new(actor, User).index?).to eq(false)
       expect(described_class.new(actor, User).access?).to eq(false)
       expect(described_class::Scope.new(actor, User).resolve).to be_empty
     end

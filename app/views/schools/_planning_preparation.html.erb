@@ -1,6 +1,8 @@
 <dl class="mt-5 grid gap-3 sm:grid-cols-3">
   <div class="rounded-xl bg-slate-50 p-4">
-    <dt class="text-sm font-semibold text-slate-700"><%= t("school_years.planning.preparation.teachers") %></dt>
+    <dt class="text-sm font-semibold text-slate-700">
+      <%= link_to t("school_years.planning.preparation.teachers"), planning_teacher_path, class: "hover:text-sky-700" %>
+    </dt>
     <dd class="mt-1 text-xl font-bold text-slate-900">
       <%= t("school_years.planning.preparation.teacher_count", count: summary.fetch(:teacher_count)) %>
     </dd>

@@ -61,6 +61,8 @@ ko:
   school_years:
     status:
       planning: "준비 중"
+      active: "운영 중"
+      archived: "지난 학년도"
     planning:
       title: "다음 학년도 준비"
       existing: "%{year}학년도 준비 중"
