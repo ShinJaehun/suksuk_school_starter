@@ -121,7 +121,7 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(response.body).to include(planning_teacher.name, '준비 중')
     expect(response.body).not_to include(active_teacher.name, archived_teacher.name)
     expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
-    expect(response.body).not_to include(I18n.t('admin.teachers.index.add_teacher'))
+    expect(response.body).to include(I18n.t('admin.teachers.index.add_teacher'))
     expect(response.body).not_to include(edit_teacher_path(planning_teacher))
 
     get teachers_path, params: { school_id: school.id, school_year_id: archived_year.id }
@@ -147,7 +147,7 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(planning_teacher.name, '준비 중')
     expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
-    expect(response.body).not_to include(I18n.t('admin.teachers.index.add_teacher'))
+    expect(response.body).to include(I18n.t('admin.teachers.index.add_teacher'))
 
     get teachers_path, params: { school_year_id: archived_year.id }
     expect(response).to have_http_status(:not_found)
@@ -306,6 +306,202 @@ RSpec.describe 'Teacher operations', type: :request do
       grade: 4,
       school_role: 'member'
     )
+  end
+
+  it 'lets an admin create a member teacher in the selected planning context' do
+    active_year = school.school_years.active.first || create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    active_classroom = create(:classroom, school_year: active_year, grade: 4)
+    admin = create(:user, :admin)
+    sign_in admin
+
+    get new_teacher_path, params: { school_id: school.id, school_year_id: planning_year.id }
+    document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:ok)
+    expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
+    expect(document.at_css(%(input[name="school_year_id"][value="#{planning_year.id}"]))).to be_present
+    expect(document.at_css('select[name="classroom_id"]')).to be_nil
+
+    post teachers_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      classroom_id: active_classroom.id,
+      membership_grade: 4,
+      user: {
+        name: '다음 학년도 교사',
+        login_id: 'next-year-teacher',
+        email: '',
+        school_role: 'manager'
+      }
+    }
+
+    teacher = planning_year.users.teacher.find_by!(login_id: 'next-year-teacher')
+    expect(teacher).to have_attributes(school_role: 'member', grade: 4)
+    expect(teacher.assigned_classroom).to be_nil
+    expect(teacher.teacher_credential_events.temporary_password_issued.last.actor_user).to eq(admin)
+    temporary_password = Nokogiri::HTML(response.body).at_css('[data-temporary-password]').text
+    expect(teacher.valid_password?(temporary_password)).to eq(true)
+    expect(response.headers['Cache-Control']).to include('no-store')
+    document = Nokogiri::HTML(response.body)
+    expect(
+      document.at_css(
+        %(a[href="#{teachers_path(school_id: school.id, school_year_id: planning_year.id)}"])
+      )
+    ).to be_present
+  end
+
+  it 'lets a current manager create in their immediately following planning context' do
+    current_manager = manager
+    planning_year = create(:school_year,
+                           school: school,
+                           year: current_manager.school_year.year + 1)
+    sign_in current_manager
+
+    post teachers_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      membership_grade: 5,
+      user: { name: '후임 학년도 교사', login_id: 'manager-created-next', email: '' }
+    }
+
+    teacher = planning_year.users.teacher.find_by!(login_id: 'manager-created-next')
+    expect(teacher).to have_attributes(school_role: 'member', grade: 5)
+    expect(response).to have_http_status(:ok)
+    document = Nokogiri::HTML(response.body)
+    expect(
+      document.at_css(
+        %(a[href="#{teachers_path(school_id: school.id, school_year_id: planning_year.id)}"])
+      )
+    ).to be_present
+  end
+
+  it 'preserves planning context when creation validation fails' do
+    active_year = school.school_years.active.first || create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    sign_in create(:user, :admin)
+
+    post teachers_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      membership_grade: 4,
+      user: { name: '', login_id: '', email: '' }
+    }
+
+    document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
+    expect(document.at_css(%(input[name="school_year_id"][value="#{planning_year.id}"]))).to be_present
+  end
+
+  it 'rejects an archived SchoolYear creation context' do
+    active_year = school.school_years.active.first ||
+                  create(:school_year, :active, school: school, year: 2026)
+    archived_year = create(
+      :school_year,
+      :archived,
+      school: school,
+      year: active_year.year - 1
+    )
+    sign_in create(:user, :admin)
+
+    get new_teacher_path,
+        params: { school_id: school.id, school_year_id: archived_year.id }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'rejects a cross-school planning creation context for an admin' do
+    active_year = school.school_years.active.first ||
+                  create(:school_year, :active, school: school, year: 2026)
+    other_school = create(:school)
+    other_active_year = create(
+      :school_year,
+      :active,
+      school: other_school,
+      year: active_year.year
+    )
+    other_planning_year = create(
+      :school_year,
+      school: other_school,
+      year: other_active_year.year + 1
+    )
+    sign_in create(:user, :admin)
+
+    get new_teacher_path,
+        params: {
+          school_id: school.id,
+          school_year_id: other_planning_year.id
+        }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'rejects a SchoolYear creation context without an admin School context' do
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school)
+    other_planning_year = create(
+      :school_year,
+      school: other_school,
+      year: other_active_year.year + 1
+    )
+    sign_in create(:user, :admin)
+
+    get new_teacher_path,
+        params: { school_year_id: other_planning_year.id }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'does not create a teacher in an archived context' do
+    active_year = school.school_years.active.first ||
+                  create(:school_year, :active, school: school, year: 2026)
+    archived_year = create(
+      :school_year,
+      :archived,
+      school: school,
+      year: active_year.year - 1
+    )
+    sign_in create(:user, :admin)
+
+    expect do
+      post teachers_path, params: {
+        school_id: school.id,
+        school_year_id: archived_year.id,
+        membership_grade: 4,
+        user: {
+          name: '지난 학년도 교사',
+          login_id: 'archived-create',
+          email: ''
+        }
+      }
+    end.not_to change(User.teacher, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'does not let a manager create in another School planning context' do
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school)
+    other_planning_year = create(
+      :school_year,
+      school: other_school,
+      year: other_active_year.year + 1
+    )
+    sign_in manager
+
+    post teachers_path, params: {
+      school_id: other_school.id,
+      school_year_id: other_planning_year.id,
+      membership_grade: 4,
+      user: {
+        name: '권한 밖 교사',
+        login_id: 'outside-planning',
+        email: ''
+      }
+    }
+
+    expect(response).to have_http_status(:not_found)
+    expect(other_planning_year.users.teacher).to be_empty
   end
 
   it 'does not create a teacher in an inactive school' do

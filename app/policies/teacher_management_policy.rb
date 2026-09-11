@@ -31,7 +31,25 @@ class TeacherManagementPolicy < ApplicationPolicy
   end
 
   def create?
-    access?
+    return access? if record.teacher? && record.school_year.nil?
+
+    return false unless access?
+    return true unless record.respond_to?(:school_year) && record.school_year
+
+    school_year = record.school_year
+    return false unless school_year.active? || school_year.planning?
+
+    if school_year.active?
+      return true if user&.admin?
+
+      return school_year == user.school_year
+    end
+
+    return false unless school_year.school&.active?
+    return true if user&.admin?
+
+    school_year.school == user.annual_school &&
+      school_year.year == user.school_year.year + 1
   end
 
   def update_profile?

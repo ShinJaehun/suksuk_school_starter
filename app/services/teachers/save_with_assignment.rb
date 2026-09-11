@@ -8,21 +8,24 @@ module Teachers
       end
     end
 
-    def self.call(teacher:, attributes:, school:, classroom_id:, actor:, membership_grade: UNCHANGED_MEMBERSHIP_GRADE)
+    def self.call(teacher:, attributes:, school:, classroom_id:, actor:, membership_grade: UNCHANGED_MEMBERSHIP_GRADE,
+                  school_year: nil)
       new(
         teacher: teacher,
         attributes: attributes,
         school: school,
+        school_year: school_year,
         classroom_id: classroom_id,
         membership_grade: membership_grade,
         actor: actor
       ).call
     end
 
-    def initialize(teacher:, attributes:, school:, classroom_id:, membership_grade:, actor:)
+    def initialize(teacher:, attributes:, school:, school_year:, classroom_id:, membership_grade:, actor:)
       @teacher = teacher
       @attributes = attributes
       @school = school
+      @requested_school_year = school_year
       @raw_classroom_id = classroom_id
       @membership_grade = membership_grade
       @actor = actor
@@ -66,7 +69,8 @@ module Teachers
 
     private
 
-    attr_reader :teacher, :attributes, :school, :raw_classroom_id, :membership_grade, :classroom, :grade,
+    attr_reader :teacher, :attributes, :school, :requested_school_year, :raw_classroom_id, :membership_grade,
+                :classroom, :grade,
                 :current_assignment, :current_classroom, :actor, :temporary_password
 
     def normalize_inputs
@@ -88,7 +92,8 @@ module Teachers
       add_error(:login_id_required) if teacher.login_id.blank?
       add_error(:membership_grade_invalid) if invalid_grade?
       add_error(:classroom_not_found) if invalid_classroom_id?
-      add_inactive_school_error if school&.inactive? && (teacher.annual_school != school || classroom)
+      add_error(:classroom_not_found) if target_school_year&.planning? && raw_classroom_id.present?
+      add_inactive_school_error if school&.inactive? && (teacher.new_record? || teacher.annual_school != school || classroom)
       return if teacher.errors.any? || classroom.nil?
 
       add_error(:school_required_for_classrooms) unless school
@@ -169,6 +174,13 @@ module Teachers
 
     def target_school_year
       return @target_school_year if defined?(@target_school_year)
+
+      if requested_school_year
+        @target_school_year = requested_school_year if requested_school_year.persisted? &&
+          requested_school_year.school == school &&
+          (requested_school_year.active? || requested_school_year.planning?)
+        return @target_school_year
+      end
 
       active_school_years = school&.school_years&.active&.limit(2)&.to_a || []
       @target_school_year = active_school_years.one? ? active_school_years.first : nil

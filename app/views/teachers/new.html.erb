@@ -1,6 +1,15 @@
 <section class="mx-auto max-w-3xl space-y-6 pt-4">
   <header>
     <h1 class="text-3xl font-extrabold"><%= t("admin.teachers.new_title") %></h1>
+    <% if @teacher_creation_school_year %>
+      <p class="mt-1 text-sm font-semibold text-slate-600">
+        <%= t(
+              "admin.teachers.index.context_title",
+              year: @teacher_creation_school_year.year,
+              status: t("school_years.status.#{@teacher_creation_school_year.status}")
+            ) %>
+      </p>
+    <% end %>
   </header>
   <%= render "form" %>
 </section>

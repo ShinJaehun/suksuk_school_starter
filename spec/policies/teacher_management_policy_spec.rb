@@ -28,6 +28,32 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class.new(member, User.new(role: :teacher)).create?).to eq(false)
   end
 
+  it 'allows creation in authorized active or planning contexts but not archived context' do
+    admin = create(:user, :admin)
+    active_year = manager.school_year
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    archived_year = create(:school_year, :archived, school: school, year: active_year.year - 1)
+
+    [active_year, planning_year].each do |school_year|
+      teacher = User.new(role: :teacher, school_year: school_year)
+      expect(described_class.new(admin, teacher).create?).to eq(true)
+      expect(described_class.new(manager, teacher).create?).to eq(true)
+    end
+
+    archived_teacher = User.new(role: :teacher, school_year: archived_year)
+    expect(described_class.new(admin, archived_teacher).create?).to eq(false)
+    expect(described_class.new(manager, archived_teacher).create?).to eq(false)
+  end
+
+  it 'rejects a manager creating in another school planning context' do
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school)
+    other_planning_year = create(:school_year, school: other_school, year: other_active_year.year + 1)
+    teacher = User.new(role: :teacher, school_year: other_planning_year)
+
+    expect(described_class.new(manager, teacher).create?).to eq(false)
+  end
+
   it 'limits manager profile management and scope to their school' do
     expect(described_class.new(manager, member).update_profile?).to eq(true)
     expect(described_class.new(manager, manager).update_profile?).to eq(true)

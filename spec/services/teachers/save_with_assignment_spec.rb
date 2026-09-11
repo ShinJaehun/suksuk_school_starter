@@ -27,6 +27,58 @@ RSpec.describe Teachers::SaveWithAssignment do
     expect(teacher.teacher_credential_events.temporary_password_issued).to exist
   end
 
+  it "creates a member teacher in an explicitly selected planning SchoolYear" do
+    school = create(:school)
+    active_year = create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    teacher = build(:user, :teacher, login_id: " planning-teacher ", email: nil)
+
+    result = described_class.call(
+      teacher: teacher,
+      attributes: {},
+      school: school,
+      school_year: planning_year,
+      membership_grade: 5,
+      classroom_id: nil,
+      actor: actor
+    )
+
+    expect(result).to be_success
+    expect(teacher).to have_attributes(
+      school_year: planning_year,
+      login_id: "planning-teacher",
+      school_role: "member",
+      grade: 5,
+      password_change_required: true
+    )
+    expect(result.temporary_password).to be_present
+    expect(teacher.teacher_credential_events.temporary_password_issued).to exist
+  end
+
+  it "rejects an explicit archived or cross-school SchoolYear" do
+    school = create(:school)
+    create(:school_year, :active, school: school, year: 2026)
+    archived_year = create(:school_year, :archived, school: school, year: 2025)
+    other_school = create(:school)
+    other_planning_year = create(:school_year, school: other_school, year: 2027)
+
+    [archived_year, other_planning_year].each_with_index do |school_year, index|
+      teacher = build(:user, :teacher, login_id: "invalid-context-#{index}")
+      result = described_class.call(
+        teacher: teacher,
+        attributes: {},
+        school: school,
+        school_year: school_year,
+        membership_grade: 5,
+        classroom_id: nil,
+        actor: actor
+      )
+
+      expect(result).not_to be_success
+      expect(teacher).not_to be_persisted
+    end
+  end
+
   it "updates profile attributes while preserving the annual login ID" do
     school = create(:school)
     teacher = annual_teacher(school: school, grade: nil, name: "변경 전")

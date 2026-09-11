@@ -24,7 +24,22 @@
            data-teacher-form-section="assignments">
     <h2 class="text-lg font-bold text-slate-900"><%= t("admin.teachers.school_assignment_title") %></h2>
 
-    <% if @locked_classroom %>
+    <% if @teacher_creation_school_year %>
+      <p class="text-sm font-semibold text-slate-700">
+        <%= t(
+              "admin.teachers.form.school_year_context",
+              school: @teacher_creation_school_year.school.name,
+              year: @teacher_creation_school_year.year
+            ) %>
+      </p>
+      <%= hidden_field_tag :school_id, @teacher_creation_school_year.school_id %>
+      <%= hidden_field_tag :school_year_id, @teacher_creation_school_year.id %>
+      <% unless @planning_teacher_creation %>
+        <%= tag.input type: "hidden",
+              value: @teacher_creation_school_year.school_id,
+              data: { teacher_classroom_picker_target: "school" } %>
+      <% end %>
+    <% elsif @locked_classroom %>
       <p class="text-sm text-amber-700"><%= t("admin.teachers.form.inactive_classroom_assignment_locked") %></p>
       <dl class="grid gap-3 text-sm sm:grid-cols-3">
         <div>
@@ -73,22 +88,24 @@
               ),
               include_blank: t("admin.teachers.index.unassigned_grade"),
               class: "mt-1 block w-full rounded border px-3 py-2",
-              data: {
+              data: (@planning_teacher_creation ? {} : {
                 teacher_classroom_picker_target: "grade",
                 action: "teacher-classroom-picker#changeGrade"
-              } %>
+              }) %>
       </div>
 
-      <fieldset class="space-y-3">
-        <legend class="font-semibold"><%= t("admin.teachers.form.classrooms_label") %></legend>
-        <div data-teacher-classroom-picker-target="options">
-          <%= render "teachers/classroom_options",
-                classrooms: @classroom_candidates,
-                selected_classroom_id: @selected_classroom_id,
-                selection_ready: @classroom_selection_ready,
-                selection_prompt_key: @classroom_selection_prompt_key %>
-        </div>
-      </fieldset>
+      <% unless @planning_teacher_creation %>
+        <fieldset class="space-y-3">
+          <legend class="font-semibold"><%= t("admin.teachers.form.classrooms_label") %></legend>
+          <div data-teacher-classroom-picker-target="options">
+            <%= render "teachers/classroom_options",
+                  classrooms: @classroom_candidates,
+                  selected_classroom_id: @selected_classroom_id,
+                  selection_ready: @classroom_selection_ready,
+                  selection_prompt_key: @classroom_selection_prompt_key %>
+          </div>
+        </fieldset>
+      <% end %>
     <% end %>
   </section>
 

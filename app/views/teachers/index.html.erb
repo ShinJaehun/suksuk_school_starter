@@ -56,8 +56,8 @@
         <%= submit_tag t("filters.apply"), class: "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold" %>
       <% end %>
     </div>
-    <% if @teacher_context_mutable %>
-      <%= link_to t("admin.teachers.index.add_teacher"), new_teacher_path,
+    <% if @teacher_context_creatable %>
+      <%= link_to t("admin.teachers.index.add_teacher"), @new_teacher_path,
             class: "rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white" %>
     <% end %>
   </div>

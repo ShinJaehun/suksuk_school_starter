@@ -2,6 +2,7 @@ class TeachersController < ApplicationController
   before_action :authenticate_user!
   before_action :authorize_teacher_index!, only: :index
   before_action :authorize_teacher_management!, except: :index
+  before_action :prepare_teacher_creation_context, only: %i[new create]
   before_action :set_teacher, only: %i[edit update deactivate reactivate reissue_temporary_password]
 
   def index
@@ -9,17 +10,26 @@ class TeachersController < ApplicationController
   end
 
   def new
-    @teacher = User.new(role: :teacher)
+    @teacher = User.new(role: :teacher, school_year: @teacher_creation_school_year)
     authorize @teacher, :create?, policy_class: TeacherManagementPolicy
     prepare_form
   end
 
   def create
-    @teacher = User.new(normalized_profile_attributes(create_params).merge(role: :teacher))
+    @teacher = User.new(
+      normalized_profile_attributes(create_params).merge(
+        role: :teacher,
+        school_year: @teacher_creation_school_year
+      )
+    )
     authorize @teacher, :create?, policy_class: TeacherManagementPolicy
     school = managed_school
     membership_grade = normalized_membership_grade
-    classroom_id = selected_classroom_id(school, membership_grade)
+    classroom_id = if @teacher_creation_school_year&.planning?
+                     nil
+                   else
+                     selected_classroom_id(school, membership_grade)
+                   end
     unless assignment_invalid?
       result = save_teacher(school, classroom_id, attributes: {},
                                                   membership_grade: membership_grade)
@@ -27,6 +37,7 @@ class TeachersController < ApplicationController
 
     if result&.success?
       @temporary_password = result.temporary_password
+      @teacher_context_return_path = teacher_creation_return_path
       response.headers['Cache-Control'] = 'no-store'
       render :temporary_password
     else
@@ -143,6 +154,30 @@ class TeachersController < ApplicationController
     @school_year_options = allowed_teacher_context_years(@selected_school)
     @selected_school_year = selected_teacher_context_year
     @teacher_context_mutable = teacher_context_mutable?
+    @teacher_context_creatable = teacher_context_creatable?
+    @new_teacher_path = new_teacher_path(teacher_context_params)
+  end
+
+  def prepare_teacher_creation_context
+    @teacher_creation_context_explicit = params[:school_year_id].present?
+    @teacher_creation_school = selected_teacher_context_school
+
+    @teacher_creation_school_year =
+      if @teacher_creation_context_explicit
+        raise ActiveRecord::RecordNotFound if current_user.admin? && params[:school_id].blank?
+
+        raise ActiveRecord::RecordNotFound unless @teacher_creation_school
+
+        school_year = @teacher_creation_school.school_years.find(params[:school_year_id])
+
+        raise ActiveRecord::RecordNotFound unless school_year.active? || school_year.planning?
+
+        school_year
+      else
+        @teacher_creation_school&.school_years&.active&.first
+      end
+
+    @planning_teacher_creation = @teacher_creation_school_year&.planning?
   end
 
   def teacher_context_schools
@@ -203,6 +238,20 @@ class TeachersController < ApplicationController
     current_user.admin? || current_user.current_operational_manager?
   end
 
+  def teacher_context_creatable?
+    candidate = User.new(role: :teacher, school_year: @selected_school_year)
+    TeacherManagementPolicy.new(current_user, candidate).create?
+  end
+
+  def teacher_context_params
+    return {} unless @selected_school_year
+
+    {
+      school_id: @selected_school_year.school_id,
+      school_year_id: @selected_school_year.id
+    }
+  end
+
   def positive_id_param!(key)
     value = params[key].to_s
     raise ActiveRecord::RecordNotFound unless value.match?(/\A[1-9]\d*\z/)
@@ -220,6 +269,7 @@ class TeachersController < ApplicationController
     @classroom_selection_prompt_key = classroom_selection_prompt_key
     @classroom_candidates = @locked_classroom ? Classroom.none : classroom_candidates(managed_school)
     @selected_classroom_id = selected_classroom_id_for_form
+    @planning_teacher_creation = @teacher.new_record? && @teacher_creation_school_year&.planning?
   end
 
   def classroom_candidates(school)
@@ -345,7 +395,17 @@ class TeachersController < ApplicationController
       school: school,
       membership_grade: membership_grade,
       classroom_id: classroom_id,
-      actor: current_user
+      actor: current_user,
+      school_year: @teacher.new_record? ? @teacher_creation_school_year : nil
+    )
+  end
+
+  def teacher_creation_return_path
+    return unless @teacher_creation_context_explicit && @teacher_creation_school_year
+
+    teachers_path(
+      school_id: @teacher_creation_school_year.school_id,
+      school_year_id: @teacher_creation_school_year.id
     )
   end
 
