@@ -24,6 +24,10 @@ class SchoolPolicy < ApplicationPolicy
     record.active? && admin?
   end
 
+  def rollover?
+    record.active? && admin?
+  end
+
   def manage_teachers?
     record.active? && school_manager?
   end

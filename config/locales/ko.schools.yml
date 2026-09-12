@@ -34,6 +34,11 @@ ko:
       manager_title: "다음 학년도 관리자"
       manager_empty: "아직 다음 학년도 학교 관리자가 지정되지 않았습니다."
       manager_candidate_label: "다음 학년도 관리자로 지정할 선생님"
+      rollover:
+        title: "운영 전환"
+        manager_ready: "다음 학년도 대표 선생님이 지정되었습니다."
+        manager_required: "다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다."
+        confirm: "%{current_year}학년도를 보관하고 %{next_year}학년도 운영을 시작할까요? 전환 후 %{manager} 선생님이 새 학년도 대표 선생님이 되며, 이 작업은 단순 취소로 되돌릴 수 없습니다."
     settings:
       title: "학교 설정"
       name_title: "학교 이름"
@@ -81,6 +86,12 @@ ko:
         classroom_count: "%{count}개"
         homerooms: "담임 연결"
         homeroom_count: "%{assigned} / %{total}"
+      rollover:
+        title: "운영 전환"
+        manager_ready: "다음 학년도 대표 선생님이 지정되었습니다."
+        manager_required: "다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다."
+        submit: "다음 학년도 운영 시작"
+        confirm: "현재 %{current_year}학년도는 보관 상태가 되고 %{next_year}학년도가 실제 운영 학년도가 됩니다. %{manager} 선생님이 새 운영 권한을 갖게 되며 단순 취소나 되돌리기는 제공되지 않습니다. 계속할까요?"
       manage: "다음 학년도 준비 관리"
     create:
       success: "다음 학년도 준비를 시작했습니다."
@@ -89,3 +100,15 @@ ko:
       planning_year_exists: "이미 준비 중인 학년도가 있습니다."
       year_exists: "다음 학년도와 같은 연도가 이미 존재합니다."
       creation_conflict: "다음 학년도를 생성하지 못했습니다. 다시 확인해 주세요."
+    rollover:
+      success: "%{year}학년도 운영을 시작했습니다."
+      errors:
+        inactive_school: "비활성 학교는 학년도를 전환할 수 없습니다."
+        active_school_year_missing: "현재 운영 학년도 구성을 확인해 주세요."
+        planning_school_year_missing: "전환할 준비 학년도를 찾을 수 없습니다."
+        target_not_planning: "선택한 학년도는 더 이상 준비 중 상태가 아닙니다."
+        planning_school_year_mismatch: "준비 학년도 구성을 확인해 주세요."
+        non_consecutive_year: "현재 학년도의 바로 다음 학년도만 운영으로 전환할 수 있습니다."
+        manager_missing: "다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다."
+        manager_cardinality_invalid: "다음 학년도 대표 선생님 구성을 확인해 주세요."
+        transition_failed: "학년도 운영 전환을 완료하지 못했습니다. 현재 상태를 확인해 주세요."

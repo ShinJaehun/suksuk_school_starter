@@ -105,6 +105,17 @@ RSpec.describe SchoolPolicy do
       expect(described_class.new(student, school).manage_managers?).to eq(false)
     end
 
+    it 'allows only an admin to execute rollover for an active School' do
+      admin = create(:user, :admin)
+      manager = annual_teacher(school: school, school_role: 'manager')
+
+      expect(described_class.new(admin, school).rollover?).to eq(true)
+      expect(described_class.new(manager, school).rollover?).to eq(false)
+
+      school.update!(active: false)
+      expect(described_class.new(admin, school).rollover?).to eq(false)
+    end
+
     it "rejects a student" do
       [create(:student)].each do |user|
         policy = described_class.new(user, school)

@@ -30,5 +30,7 @@ class SchoolPlanningController < ApplicationController
     @planning_managers = planning_teachers.where(school_role: "manager").order(:id)
     @planning_manager_candidates = planning_teachers.order(:school_role, :id)
     @can_manage_planning_manager = policy(@school).manage_managers?
+    @rollover_eligibility = SchoolYears::RolloverEligibility.new(school_year: @planning_school_year)
+    @can_rollover = policy(@school).rollover? && @rollover_eligibility.eligible?
   end
 end

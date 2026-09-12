@@ -94,6 +94,9 @@ Rails.application.routes.draw do
     resources :school_years, only: :create
     resource :planning, only: :show, controller: "school_planning"
   end
+  post "/schools/:school_id/planning/rollover",
+    to: "school_rollovers#create",
+    as: :school_planning_rollover
 
   # Defines the root path route ("/")
   root "home#index"
