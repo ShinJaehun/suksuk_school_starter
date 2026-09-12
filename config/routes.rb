@@ -92,6 +92,7 @@ Rails.application.routes.draw do
 
   resources :schools, only: %i[index show edit update] do
     resources :school_years, only: :create
+    resource :planning, only: :show, controller: "school_planning"
   end
 
   # Defines the root path route ("/")

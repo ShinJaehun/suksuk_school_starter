@@ -69,6 +69,11 @@
               summary: planning_preparation_summary,
               planning_teacher_path: planning_teacher_path,
               planning_classroom_path: planning_classroom_path %>
+        <div class="mt-4">
+          <%= link_to t("school_years.planning.manage"),
+                school_planning_path(school),
+                class: "inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700" %>
+        </div>
       <% end %>
     </section>
   <% end %>

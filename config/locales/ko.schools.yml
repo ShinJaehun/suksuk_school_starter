@@ -28,6 +28,12 @@ ko:
       administrators: "학교 관리자"
       administrators_empty: "지정된 학교 관리자 없음"
       back_to_classrooms: "교실 목록으로"
+    planning:
+      year_status: "%{year}학년도 · 준비 중"
+      back_to_school: "학교 운영 정보로 돌아가기"
+      manager_title: "다음 학년도 관리자"
+      manager_empty: "아직 다음 학년도 학교 관리자가 지정되지 않았습니다."
+      manager_candidate_label: "다음 학년도 관리자로 지정할 선생님"
     settings:
       title: "학교 설정"
       name_title: "학교 이름"
@@ -75,6 +81,7 @@ ko:
         classroom_count: "%{count}개"
         homerooms: "담임 연결"
         homeroom_count: "%{assigned} / %{total}"
+      manage: "다음 학년도 준비 관리"
     create:
       success: "다음 학년도 준비를 시작했습니다."
     errors:
