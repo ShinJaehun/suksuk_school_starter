@@ -110,6 +110,22 @@ RSpec.describe ClassroomPolicy do
 
       expect(described_class.new(manager, classroom).show?).to eq(false)
     end
+
+    it 'allows the current manager to read only their School archive' do
+      school = create(:school)
+      archived_year = create(:school_year, :archived, school: school, year: 2025)
+      archived_classroom = create(:classroom, school_year: archived_year)
+      manager = annual_teacher(school: school, school_role: 'manager')
+      other_manager = annual_teacher(school: create(:school), school_role: 'manager')
+
+      policy = described_class.new(manager, archived_classroom)
+      expect(policy.show?).to eq(true)
+      expect(policy.view_student_data?).to eq(true)
+      expect(policy.update?).to eq(false)
+      expect(policy.destroy?).to eq(false)
+      expect(policy.manage_members?).to eq(false)
+      expect(described_class.new(other_manager, archived_classroom).show?).to eq(false)
+    end
   end
 
   describe "#view_student_data?" do

@@ -139,7 +139,7 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(response.body).not_to include(edit_teacher_path(archived_teacher))
   end
 
-  it 'lets a current manager read only their active and immediately following planning contexts' do
+  it 'lets a current manager read active, immediate planning, and archived contexts in their School' do
     current_manager = manager
     active_year = current_manager.school_year
     planning_year = create(:school_year, school: school, year: active_year.year + 1)
@@ -167,13 +167,36 @@ RSpec.describe 'Teacher operations', type: :request do
     ).to be_present
 
     get teachers_path, params: { school_year_id: archived_year.id }
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include('지난 학년도', I18n.t('admin.teachers.index.context_read_only'))
+    expect(response.body).not_to include(I18n.t('admin.teachers.index.add_teacher'))
+    archived_option = Nokogiri::HTML(response.body).at_css(
+      %(select[name="school_year_id"] option[value="#{archived_year.id}"][selected])
+    )
+    expect(archived_option).to be_present
 
     get teachers_path, params: {
       school_id: other_school.id,
       school_year_id: other_planning_year.id
     }
     expect(response).to have_http_status(:not_found)
+  end
+
+  it 'keeps the current active SchoolYear as the manager default context' do
+    current_manager = manager
+    archived_year = create(:school_year, :archived,
+      school: school, year: current_manager.school_year.year - 1)
+    archived_teacher = create(:user, :teacher, school_year: archived_year,
+      name: '과거 교사', login_id: 'manager-default-archived', school_role: 'member')
+    sign_in current_manager
+
+    get teachers_path
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).not_to include(archived_teacher.name)
+    expect(Nokogiri::HTML(response.body).at_css(
+      %(select[name="school_year_id"] option[value="#{current_manager.school_year.id}"][selected])
+    )).to be_present
   end
 
   it 'fails closed for a malformed school parameter' do

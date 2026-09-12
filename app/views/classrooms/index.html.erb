@@ -157,11 +157,18 @@
               <% end %>
             </div>
           <% end %>
-          <% if @classroom_context_read_only && policy(classroom).edit? %>
+          <% if @classroom_context_read_only %>
             <div class="mt-6 flex flex-wrap items-center gap-2">
-              <%= link_to t("classrooms.actions.settings"),
-                    edit_classroom_path(classroom, @classroom_edit_context_params),
-                    class: "inline-flex flex-1 items-center justify-center rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100" %>
+              <% if policy(classroom).show? %>
+                <%= link_to t("classrooms.index.open"),
+                      classroom_path(classroom, @classroom_show_context_params),
+                      class: "inline-flex flex-1 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
+              <% end %>
+              <% if policy(classroom).edit? %>
+                <%= link_to t("classrooms.actions.settings"),
+                      edit_classroom_path(classroom, @classroom_edit_context_params),
+                      class: "inline-flex flex-1 items-center justify-center rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100" %>
+              <% end %>
             </div>
           <% end %>
         </article>

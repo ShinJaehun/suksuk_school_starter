@@ -134,7 +134,27 @@ class ClassroomsController < ApplicationController
   private
 
   def set_classroom
-    @classroom = Classroom.find(params[:id])
+    unless params[:school_id].present? || params[:school_year_id].present?
+      @classroom = Classroom.find(params[:id])
+      return
+    end
+
+    raise ActiveRecord::RecordNotFound unless
+      params[:school_id].present? && params[:school_year_id].present?
+
+    school = School.find(params[:school_id])
+
+    raise ActiveRecord::RecordNotFound if current_user.teacher? && current_user.annual_school != school
+
+    school_year = school.school_years.find(params[:school_year_id])
+
+    if school_year.archived? &&
+       !current_user.admin? &&
+       !current_user.current_operational_manager?
+      raise ActiveRecord::RecordNotFound
+    end
+
+    @classroom = school_year.classrooms.find(params[:id])
   end
 
   def set_destroy_classroom
@@ -148,9 +168,10 @@ class ClassroomsController < ApplicationController
     school = selected_classroom_context_school
     raise ActiveRecord::RecordNotFound unless school&.active?
 
-    school_year = allowed_classroom_context_years(school)
-                  .planning
-                  .find(positive_classroom_context_id!(:school_year_id))
+    school_year = school.school_years
+                        .planning
+                        .find(positive_classroom_context_id!(:school_year_id))
+
     @classroom = school_year.classrooms.find(positive_classroom_context_id!(:id))
     @classroom_destroy_context = { school_id: school.id, school_year_id: school_year.id }
   end
@@ -263,6 +284,7 @@ class ClassroomsController < ApplicationController
     @classroom_context_creatable = classroom_context_creatable?
     @new_classroom_path = new_classroom_path(classroom_context_params)
     @classroom_edit_context_params = @selected_school_year&.planning? ? classroom_context_params : {}
+    @classroom_show_context_params = @selected_school_year&.archived? ? classroom_context_params : {}
   end
 
   def classroom_context_schools
@@ -289,8 +311,9 @@ class ClassroomsController < ApplicationController
   def allowed_classroom_context_years(school)
     return SchoolYear.none unless school
     return school.school_years.order(year: :desc) if current_user.admin?
+    return SchoolYear.where(id: current_user.school_year_id) unless current_user_school_manager?
 
-    years = [current_user.school_year]
+    years = school.school_years.archived.to_a << current_user.school_year
     planning_year = school.planning_school_year
     years << planning_year if planning_year&.year == current_user.school_year.year + 1
     SchoolYear.where(id: years.map(&:id)).order(year: :desc)

@@ -227,7 +227,7 @@ class TeachersController < ApplicationController
     return school.school_years.order(year: :desc) if current_user.admin?
 
     if current_user.current_operational_manager?
-      years = [current_user.school_year]
+      years = school.school_years.archived.to_a << current_user.school_year
       planning_year = school.planning_school_year
       years << planning_year if planning_year&.year == current_user.school_year.year + 1
       return SchoolYear.where(id: years.map(&:id)).order(year: :desc)

@@ -44,6 +44,7 @@ class ClassroomPolicy < ApplicationPolicy
 
   def show?
     return true if admin?
+    return archived_school_manager? if record.school_year&.archived?
     return false unless active_school?
 
     school_manager_of?(record) || member_of?(record)
@@ -94,6 +95,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def view_student_data?
+    return true if archived_readable?
     return false unless active_school?
     return true if admin?
     return teacher_of?(record) if teacher?
@@ -139,6 +141,15 @@ class ClassroomPolicy < ApplicationPolicy
     user.annual_school == school_year.school &&
       school_year == school_year.school.planning_school_year &&
       school_year.year == user.school_year.year + 1
+  end
+
+  def archived_readable?
+    record.respond_to?(:school_year) && record.school_year&.archived? &&
+      (admin? || archived_school_manager?)
+  end
+
+  def archived_school_manager?
+    school_manager? && user.annual_school == record.school_year.school
   end
 
   def teacher_of?(classroom)
