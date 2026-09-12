@@ -32,6 +32,11 @@ RSpec.describe 'Planning SchoolYears', type: :request do
     create(:school_year, :active, school: other_school, year: 2026)
     sign_in manager
 
+    get school_path(school)
+    document = Nokogiri::HTML(response.body)
+    expect(response.body).to include(I18n.t('school_years.planning.start', year: 2027))
+    expect(document.at_css(%(form[action="#{school_school_years_path(school)}"]))).to be_present
+
     post school_school_years_path(school)
     expect(response).to redirect_to(school_path(school))
     expect(school.school_years.planning.sole.year).to eq(2027)

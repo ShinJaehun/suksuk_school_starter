@@ -209,7 +209,7 @@ RSpec.describe 'Planning Teacher homeroom assignments', type: :request do
     expect(archived_teacher.reload.assigned_classroom).to be_nil
   end
 
-  it 'fails closed for malformed, cross-school, and inactive Teacher contexts' do
+  it 'fails closed for a cross-School Teacher context' do
     manager = create(:user, :teacher, :active_annual_teacher,
                      annual_school: school, annual_school_role: 'manager')
     other_school = create(:school)
@@ -230,15 +230,23 @@ RSpec.describe 'Planning Teacher homeroom assignments', type: :request do
 
     expect(response).to have_http_status(:not_found)
     expect(outside_teacher.reload.assigned_classroom).to be_nil
+  end
 
+  it 'rejects a malformed Classroom id without changing the assignment' do
     sign_in create(:user, :admin)
+
     patch teacher_path(teacher), params: update_params(classroom_id: 'invalid')
+
     expect(response).to have_http_status(:unprocessable_content)
     expect(teacher.reload.assigned_classroom).to be_nil
+  end
 
+  it 'fails closed for an inactive planning Teacher target' do
     inactive_teacher = create(:user, :teacher, school_year: planning_year, grade: 4,
                                                school_role: 'member', login_id: 'inactive-planning', active: false)
     classroom = create(:classroom, school_year: planning_year, grade: 4)
+    sign_in create(:user, :admin)
+
     patch teacher_path(inactive_teacher), params: context.merge(
       membership_grade: 4,
       classroom_id: classroom.id,

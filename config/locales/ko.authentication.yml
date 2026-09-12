@@ -22,6 +22,10 @@ ko:
       teacher_ineligible: "현재 학년도에서 사용할 수 없는 선생님 계정입니다."
     teacher_sessions:
       title: "%{school} 선생님 로그인"
+      school_year: "로그인할 학년도"
+      school_year_option:
+        active: "%{year}학년도 · 운영 중"
+        planning: "%{year}학년도 · 다음 학년도 준비"
       login_id: "아이디"
       password: "비밀번호"
       submit: "로그인"

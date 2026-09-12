@@ -13,9 +13,9 @@ module SchoolYears
       SchoolYear.transaction do
         school.lock!
         actor.reload
-        authorize_after_lock!
         validate_current_context
         raise ActiveRecord::Rollback if school_year.errors.any?
+        authorize_after_lock!
 
         school_year.save!
       end

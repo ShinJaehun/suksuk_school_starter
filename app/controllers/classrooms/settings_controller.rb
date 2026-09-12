@@ -73,11 +73,8 @@ class Classrooms::SettingsController < ApplicationController
 
   def planning_context_authorized?(school_year)
     return true if current_user.admin?
-    return false unless current_user.current_operational_manager?
 
-    current_user.annual_school == school_year.school &&
-      school_year == school_year.school.planning_school_year &&
-      school_year.year == current_user.school_year.year + 1
+    current_user.is_a?(User) && current_user.planning_preparation_operator_for?(school_year)
   end
 
   def positive_context_id!(key)

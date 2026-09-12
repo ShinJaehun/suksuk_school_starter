@@ -8,7 +8,7 @@
       <h2 class="font-bold text-amber-950"><%= t("admin.teachers.temporary_password_reissue.title") %></h2>
       <p class="text-sm text-amber-900"><%= t("admin.teachers.temporary_password_reissue.description") %></p>
       <%= button_to t("admin.teachers.temporary_password_reissue.submit"),
-            reissue_temporary_password_teacher_path(@teacher),
+            reissue_temporary_password_teacher_path(@teacher, @teacher_lifecycle_context_params),
             method: :patch,
             form: { data: { turbo: false } },
             data: {
@@ -34,11 +34,13 @@
     </section>
   <% end %>
   <% if @teacher.active? && policy(@teacher).deactivate_teacher? %>
-    <%= button_to t("teacher_status.deactivate"), deactivate_teacher_path(@teacher),
+    <%= button_to t("teacher_status.deactivate"),
+          deactivate_teacher_path(@teacher, @teacher_lifecycle_context_params),
           method: :patch,
           class: "rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100" %>
   <% elsif @teacher.inactive? && policy(@teacher).reactivate_teacher? %>
-    <%= button_to t("teacher_status.reactivate"), reactivate_teacher_path(@teacher),
+    <%= button_to t("teacher_status.reactivate"),
+          reactivate_teacher_path(@teacher, @teacher_lifecycle_context_params),
           method: :patch,
           class: "rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 font-semibold text-emerald-700 hover:bg-emerald-100" %>
   <% end %>

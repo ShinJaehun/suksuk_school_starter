@@ -130,7 +130,7 @@ RSpec.describe 'Admin school managers', type: :request do
     expect(teacher.reload).to be_school_member
   end
 
-  it 'rejects a school manager actor demoting a manager' do
+  it 'fails closed when another School manager targets active manager mutation' do
     teacher.update!(school_role: 'manager')
     actor = create(:user, :teacher, :active_annual_teacher,
                    annual_school: create(:school), annual_school_role: 'manager')
@@ -138,7 +138,7 @@ RSpec.describe 'Admin school managers', type: :request do
 
     delete admin_school_manager_path(school, teacher)
 
-    expect(response).to redirect_to(root_path)
+    expect(response).to have_http_status(:not_found)
     expect(teacher.reload).to be_school_manager
   end
 
@@ -274,23 +274,60 @@ RSpec.describe 'Admin school managers', type: :request do
       expect(classroom.reload.teacher).to eq(planning_teacher)
     end
 
-    it 'rejects a current operational manager actor' do
+    it 'lets the current operational manager designate a planning manager' do
       actor = teacher
       actor.update!(school_role: 'manager')
       sign_in actor
 
       post admin_school_school_managers_path(school), params: planning_context.merge(user_id: planning_teacher.id)
 
-      expect(response).to redirect_to(root_path)
-      expect(planning_teacher.reload).to be_school_member
+      expect(response).to redirect_to(school_planning_path(school))
+      expect(planning_teacher.reload).to be_school_manager
     end
 
-    it 'rejects an ordinary teacher actor' do
+    it 'lets the current operational manager replace and release the planning manager' do
+      actor = teacher
+      actor.update!(school_role: 'manager')
+      existing_manager = create_planning_teacher(name: '인계 전 관리자', school_role: 'manager')
+      replacement = planning_teacher
+      sign_in actor
+
+      post admin_school_school_managers_path(school), params: planning_context.merge(user_id: replacement.id)
+
+      expect(existing_manager.reload).to be_school_member
+      expect(replacement.reload).to be_school_manager
+
+      delete admin_school_manager_path(school, replacement), params: planning_context
+
+      expect(replacement.reload).to be_school_member
+      expect(planning_year.users.teacher.where(school_role: 'manager')).to be_empty
+    end
+
+    it 'rejects a current operational manager targeting another School' do
+      actor = teacher
+      actor.update!(school_role: 'manager')
+      other_school = create(:school)
+      other_active_year = create(:school_year, :active, school: other_school, year: active_year.year)
+      other_planning_year = create(:school_year, school: other_school, year: other_active_year.year + 1)
+      other_teacher = create(:user, :teacher, school_year: other_planning_year,
+        login_id: 'other-school-candidate', school_role: 'member')
+      sign_in actor
+
+      post admin_school_school_managers_path(other_school), params: {
+        school_year_id: other_planning_year.id,
+        user_id: other_teacher.id
+      }
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_teacher.reload).to be_school_member
+    end
+
+    it 'fails closed when an ordinary teacher targets planning manager mutation' do
       sign_in teacher
 
       post admin_school_school_managers_path(school), params: planning_context.merge(user_id: planning_teacher.id)
 
-      expect(response).to redirect_to(root_path)
+      expect(response).to have_http_status(:not_found)
       expect(planning_teacher.reload).to be_school_member
     end
 
@@ -306,7 +343,7 @@ RSpec.describe 'Admin school managers', type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it 'rejects a planning Teacher actor' do
+    it 'fails closed when a planning manager targets manager mutation' do
       actor = planning_teacher
       actor.update!(school_role: 'manager')
       target = create_planning_teacher(name: '변경되면 안 되는 후보')
@@ -314,8 +351,18 @@ RSpec.describe 'Admin school managers', type: :request do
 
       post admin_school_school_managers_path(school), params: planning_context.merge(user_id: target.id)
 
-      expect(response).to redirect_to(school_teacher_login_path(school))
+      expect(response).to have_http_status(:not_found)
       expect(target.reload).to be_school_member
+    end
+
+    it 'rejects an inactive planning Teacher as manager target' do
+      planning_teacher.update_column(:active, false)
+      sign_in admin
+
+      post admin_school_school_managers_path(school), params: planning_context.merge(user_id: planning_teacher.id)
+
+      expect(planning_teacher.reload).to be_inactive
+      expect(planning_teacher).to be_school_member
     end
 
     it 'fails closed for a cross-School planning context' do

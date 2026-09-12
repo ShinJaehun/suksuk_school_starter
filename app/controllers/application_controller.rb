@@ -84,6 +84,10 @@ class ApplicationController < ActionController::Base
       return @navigation_context = {}
     end
 
+    if current_user.planning_manager_session_eligible?
+      return @navigation_context.merge!(planning_manager: current_user)
+    end
+
     return @navigation_context unless current_user.current_operational_teacher?
 
     manager = current_user if current_user.current_operational_manager?
@@ -109,7 +113,7 @@ class ApplicationController < ActionController::Base
 
   def expire_ineligible_teacher_session
     return unless current_user&.teacher?
-    return if current_user.current_operational_teacher?
+    return if current_user.current_operational_teacher? || current_user.planning_manager_session_eligible?
 
     school = current_user.school_year&.school
     message_key = current_user.inactive? ? 'devise.failure.inactive' : 'users.sessions.teacher_ineligible'
@@ -173,6 +177,7 @@ class ApplicationController < ActionController::Base
     return schools_path if user.admin?
 
     return school_path(user.annual_school) if user.current_operational_manager?
+    return school_planning_path(user.annual_school) if user.planning_manager_session_eligible?
 
     regular_teacher_landing_path_for(user)
   end

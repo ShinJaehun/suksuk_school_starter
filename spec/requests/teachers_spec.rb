@@ -681,28 +681,19 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(teacher.reload.annual_school).to eq(school)
   end
 
-  it 'reissues an inactive teacher temporary password once and records the actor and target' do
+  it 'rejects temporary password reissue for an inactive teacher' do
     teacher = annual_teacher(school: school)
     teacher.update!(active: false, password: 'old-password')
     admin = create(:user, :admin)
     sign_in admin
 
-    patch reissue_temporary_password_teacher_path(teacher)
+    expect do
+      patch reissue_temporary_password_teacher_path(teacher)
+    end.not_to change(TeacherCredentialEvent, :count)
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to redirect_to(root_path)
     expect(teacher.reload).to be_inactive
-    expect(teacher).to be_password_change_required
-    expect(teacher.valid_password?('old-password')).to eq(false)
-    event = teacher.teacher_credential_events.temporary_password_reissued.last
-    expect(event).to have_attributes(actor_user: admin, teacher_user: teacher)
-
-    temporary_password = Nokogiri::HTML(response.body).at_css('[data-temporary-password]').text
-    expect(response.body).to include(teacher.name, teacher.login_id, temporary_password)
-    expect(teacher.valid_password?(temporary_password)).to eq(true)
-    expect(response.headers['Cache-Control']).to include('no-store')
-
-    get edit_teacher_path(teacher)
-    expect(response.body).not_to include(temporary_password)
+    expect(teacher.valid_password?('old-password')).to eq(true)
   end
 
   it 'does not change credentials or events when a manager reissues own password' do
@@ -1238,28 +1229,19 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(teacher.reload.annual_school).to eq(school)
   end
 
-  it 'reissues an inactive teacher temporary password once and records the actor and target' do
+  it 'rejects temporary password reissue for an inactive teacher' do
     teacher = annual_teacher(school: school)
     teacher.update!(active: false, password: 'old-password')
     admin = create(:user, :admin)
     sign_in admin
 
-    patch reissue_temporary_password_teacher_path(teacher)
+    expect do
+      patch reissue_temporary_password_teacher_path(teacher)
+    end.not_to change(TeacherCredentialEvent, :count)
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to redirect_to(root_path)
     expect(teacher.reload).to be_inactive
-    expect(teacher).to be_password_change_required
-    expect(teacher.valid_password?('old-password')).to eq(false)
-    event = teacher.teacher_credential_events.temporary_password_reissued.last
-    expect(event).to have_attributes(actor_user: admin, teacher_user: teacher)
-
-    temporary_password = Nokogiri::HTML(response.body).at_css('[data-temporary-password]').text
-    expect(response.body).to include(teacher.name, teacher.login_id, temporary_password)
-    expect(teacher.valid_password?(temporary_password)).to eq(true)
-    expect(response.headers['Cache-Control']).to include('no-store')
-
-    get edit_teacher_path(teacher)
-    expect(response.body).not_to include(temporary_password)
+    expect(teacher.valid_password?('old-password')).to eq(true)
   end
 
   it 'does not change credentials or events when a manager reissues own password' do

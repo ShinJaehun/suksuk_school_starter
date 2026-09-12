@@ -43,23 +43,27 @@ RSpec.describe SchoolYearPolicy do
     expect(described_class.new(manager, other_planning_year).prepare?).to eq(false)
   end
 
-  it "rejects ordinary and non-operational manager accounts" do
-    member = create(:user, :teacher, :active_annual_teacher, annual_school: school)
+  it "allows an eligible active planning manager to prepare but not create" do
     planning_manager = create(:user, :teacher,
       school_year: create(:school_year, school: school, year: 2027),
       login_id: "planning-manager", school_role: "manager")
+
+    expect(described_class.new(planning_manager, planning_manager.school_year).prepare?).to eq(true)
+    expect(described_class.new(planning_manager, planning_year).create?).to eq(false)
+  end
+
+  it "rejects ordinary and ineligible manager accounts" do
+    member = create(:user, :teacher, :active_annual_teacher, annual_school: school)
     archived_school = create(:school)
     archived_manager = create(:user, :teacher,
       school_year: create(:school_year, :archived, school: archived_school, year: 2025),
       login_id: "archived-manager", school_role: "manager")
 
     expect(described_class.new(member, planning_year).create?).to eq(false)
-    expect(described_class.new(planning_manager, planning_year).create?).to eq(false)
     expect(described_class.new(archived_manager, planning_year).create?).to eq(false)
 
-    persisted_planning_year = planning_manager.school_year
+    persisted_planning_year = create(:school_year, school: school, year: 2027)
     expect(described_class.new(member, persisted_planning_year).prepare?).to eq(false)
-    expect(described_class.new(planning_manager, persisted_planning_year).prepare?).to eq(false)
     expect(described_class.new(archived_manager, persisted_planning_year).prepare?).to eq(false)
   end
 end

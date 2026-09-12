@@ -6,12 +6,15 @@ class TeacherSessionsController < ApplicationController
 
   def new
     @school = School.find(params[:school_id])
+    prepare_login_contexts
   end
 
   def create
     @school = School.find(params[:school_id])
+    prepare_login_contexts
     login_id = params.dig(:teacher, :login_id).to_s.strip.downcase
-    teacher = active_school_year&.users&.teacher&.find_by(login_id: login_id) if login_id.present?
+    school_year = selected_login_school_year
+    teacher = authentication_candidate(school_year, login_id) if login_id.present?
     limiter = UserPasswordAttemptLimiter.new(
       school_id: @school.id,
       login_id:,
@@ -33,10 +36,43 @@ class TeacherSessionsController < ApplicationController
 
   private
 
-  def active_school_year
-    return unless @school.active?
+  def prepare_login_contexts
+    @active_school_year = @school.active? ? @school.active_school_year : nil
+    @planning_school_year = eligible_planning_school_year
+    @login_school_years = [@active_school_year, @planning_school_year].compact
+    @selected_school_year_id = submitted_school_year_id || @active_school_year&.id
+  end
 
-    @school.active_school_year
+  def eligible_planning_school_year
+    return unless @school.active? && @active_school_year
+
+    planning_year = @school.planning_school_year
+    return unless planning_year&.year == @active_school_year.year + 1
+    return unless planning_year.users.teacher.active.where(school_role: 'manager').count == 1
+
+    planning_year
+  end
+
+  def submitted_school_year_id
+    value = params.dig(:teacher, :school_year_id).to_s
+    return if value.blank?
+    return value.to_i if value.match?(/\A[1-9]\d*\z/)
+
+    false
+  end
+
+  def selected_login_school_year
+    return unless @selected_school_year_id
+
+    @login_school_years.find { |school_year| school_year.id == @selected_school_year_id }
+  end
+
+  def authentication_candidate(school_year, login_id)
+    return unless school_year
+
+    scope = school_year.users.teacher.active
+    scope = scope.where(school_role: 'manager') if school_year.planning?
+    scope.find_by(login_id: login_id)
   end
 
   def render_throttled

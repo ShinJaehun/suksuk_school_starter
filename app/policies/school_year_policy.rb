@@ -8,7 +8,11 @@ class SchoolYearPolicy < ApplicationPolicy
   end
 
   def create?
-    record.new_record? && planning_operator?
+    return false unless record.new_record? && record.school&.active?
+    return true if admin?
+
+    user.is_a?(User) && user.current_operational_manager? &&
+      user.annual_school == record.school && record.year == user.school_year.year + 1
   end
 
   private
@@ -18,6 +22,6 @@ class SchoolYearPolicy < ApplicationPolicy
     return false unless school&.active?
     return true if admin?
 
-    user.is_a?(User) && user.current_operational_manager? && user.annual_school == school
+    user.is_a?(User) && user.planning_preparation_operator_for?(record)
   end
 end

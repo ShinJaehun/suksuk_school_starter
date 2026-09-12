@@ -28,6 +28,18 @@ RSpec.describe "School planning preparation", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
+  it "lets the active planning manager view the preparation page without manager controls" do
+    planning_manager = create_planning_teacher(name: "다음 관리자", school_role: "manager")
+    sign_in planning_manager
+
+    get school_planning_path(school)
+
+    document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:ok)
+    expect(document.at_css(%(form[action="#{admin_school_school_managers_path(school)}"]))).to be_nil
+    expect(document.at_css(%(form[action="#{school_planning_rollover_path(school)}"]))).to be_nil
+  end
+
   it "rejects an ordinary teacher" do
     teacher = create(:user, :teacher, :active_annual_teacher, annual_school: school)
     sign_in teacher
@@ -112,6 +124,19 @@ RSpec.describe "School planning preparation", type: :request do
     expect(response.body).to include("아직 다음 학년도 학교 관리자가 지정되지 않았습니다.")
   end
 
+  it "shows planning manager assignment controls to the current manager in the empty state" do
+    candidate = create_planning_teacher(name: "다음 관리자 후보")
+    sign_in manager
+
+    get school_planning_path(school)
+
+    document = Nokogiri::HTML(response.body)
+    form = document.at_css(%(form[action="#{admin_school_school_managers_path(school)}"]))
+    expect(form).to be_present
+    expect(form.at_css(%(input[name="school_year_id"][value="#{planning_year.id}"]))).to be_present
+    expect(form.at_css(%(option[value="#{candidate.id}"]))).to be_present
+  end
+
   it "shows the planning manager" do
     planning_manager = create_planning_teacher(name: "다음 관리자", school_role: "manager")
     sign_in admin
@@ -132,7 +157,7 @@ RSpec.describe "School planning preparation", type: :request do
     expect(document.at_css(%(a[href="#{admin_school_manager_path(school, planning_manager, school_year_id: planning_year.id)}"]))).to be_present
   end
 
-  it "hides manager mutation controls from the current manager" do
+  it "shows manager mutation controls to the current manager" do
     planning_manager = create_planning_teacher(name: "다음 관리자", school_role: "manager")
     sign_in manager
 
@@ -140,12 +165,14 @@ RSpec.describe "School planning preparation", type: :request do
 
     document = Nokogiri::HTML(response.body)
     expect(response.body).to include(planning_manager.name)
-    expect(document.at_css(%(form[action="#{admin_school_school_managers_path(school)}"]))).to be_nil
-    expect(document.at_css(%(a[href="#{admin_school_manager_path(school, planning_manager, school_year_id: planning_year.id)}"]))).to be_nil
+    expect(document.at_css(%(form[action="#{admin_school_school_managers_path(school)}"]))).to be_present
+    expect(document.at_css(%(a[href="#{admin_school_manager_path(school, planning_manager, school_year_id: planning_year.id)}"]))).to be_present
   end
 
   it "limits manager candidates to the planning SchoolYear" do
     planning_candidate = create_planning_teacher(name: "다음 후보")
+    inactive_candidate = create_planning_teacher(name: "비활성 후보")
+    inactive_candidate.update!(active: false)
     active_candidate = create(:user, :teacher, :active_annual_teacher,
       annual_school: school,
       name: "현재 후보")
@@ -167,7 +194,11 @@ RSpec.describe "School planning preparation", type: :request do
       .first
     option_values = form.css(%(select[name="user_id"] option)).map { |option| option["value"] }
     expect(option_values).to include(planning_candidate.id.to_s)
-    expect(option_values).not_to include(active_candidate.id.to_s, other_candidate.id.to_s)
+    expect(option_values).not_to include(
+      inactive_candidate.id.to_s,
+      active_candidate.id.to_s,
+      other_candidate.id.to_s
+    )
   end
 
   it "does not expose planning manager UI on School settings" do

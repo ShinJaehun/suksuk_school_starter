@@ -89,42 +89,36 @@ RSpec.describe 'Classrooms index entry', type: :request do
     expect(response.body).not_to include(planning_classroom.class_label, archived_classroom.class_label)
     expect(response.body).to include(I18n.t('ui.buttons.new_classroom'))
 
-    [
-      [planning_year, planning_classroom],
-      [archived_year, archived_classroom]
-    ].each do |school_year, classroom|
-      get classrooms_path, params: { school_id: school.id, school_year_id: school_year.id }
+    get classrooms_path, params: { school_id: school.id, school_year_id: planning_year.id }
 
-      expect(response).to have_http_status(:ok)
-      expect(response.body).to include(classroom.class_label)
-      expect(response.body).to include(I18n.t('classrooms.index.context_read_only'))
-      document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(planning_classroom.class_label)
+    expect(response.body).not_to include(I18n.t('classrooms.index.context_read_only'))
+    planning_document = Nokogiri::HTML(response.body)
+    expect(planning_document.at_css(%(a[href="#{new_classroom_path(
+      school_id: school.id,
+      school_year_id: planning_year.id
+    )}"]))).to be_present
+    expect(planning_document.at_css(%(a[href="#{edit_classroom_path(
+      planning_classroom,
+      school_id: school.id,
+      school_year_id: planning_year.id
+    )}"]))).to be_present
+    expect(planning_document.at_css(%(a[href="#{classroom_members_path(planning_classroom)}"]))).to be_nil
 
-      if school_year.planning?
-        expect(
-          document.at_css(
-            %(a[href="#{new_classroom_path(
-              school_id: school.id,
-              school_year_id: planning_year.id
-            )}"])
-          )
-        ).to be_present
-      else
-        expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
-      end
+    get classrooms_path, params: { school_id: school.id, school_year_id: archived_year.id }
 
-      if school_year.archived?
-        expect(document.at_css(%(a[href="#{classroom_path(
-          classroom,
-          school_id: school.id,
-          school_year_id: school_year.id
-        )}"]))).to be_present
-      else
-        expect(document.at_css(%(a[href="#{classroom_path(classroom)}"]))).to be_present
-      end
-      expect(document.at_css(%(a[href="#{edit_classroom_path(classroom)}"]))).to be_nil
-      expect(document.at_css(%(a[href="#{classroom_members_path(classroom)}"]))).to be_nil
-    end
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(archived_classroom.class_label, I18n.t('classrooms.index.context_read_only'))
+    archived_document = Nokogiri::HTML(response.body)
+    expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
+    expect(archived_document.at_css(%(a[href="#{classroom_path(
+      archived_classroom,
+      school_id: school.id,
+      school_year_id: archived_year.id
+    )}"]))).to be_present
+    expect(archived_document.at_css(%(a[href="#{edit_classroom_path(archived_classroom)}"]))).to be_nil
+    expect(archived_document.at_css(%(a[href="#{classroom_members_path(archived_classroom)}"]))).to be_nil
   end
 
   it 'lets a current manager read active, immediate planning, and archived contexts in their School' do
@@ -150,7 +144,7 @@ RSpec.describe 'Classrooms index entry', type: :request do
     get classrooms_path, params: { school_year_id: planning_year.id }
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(planning_classroom.class_label)
-    expect(response.body).to include(I18n.t('classrooms.index.context_read_only'))
+    expect(response.body).not_to include(I18n.t('classrooms.index.context_read_only'))
     document = Nokogiri::HTML(response.body)
     expect(
       document.at_css(
@@ -160,6 +154,11 @@ RSpec.describe 'Classrooms index entry', type: :request do
         )}"])
       )
     ).to be_present
+    expect(document.at_css(%(a[href="#{edit_classroom_path(
+      planning_classroom,
+      school_id: school.id,
+      school_year_id: planning_year.id
+    )}"]))).to be_present
     get classrooms_path, params: { school_year_id: archived_year.id }
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(archived_classroom.class_label, I18n.t('classrooms.index.context_read_only'))

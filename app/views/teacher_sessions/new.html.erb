@@ -5,6 +5,21 @@
     <%= form_with scope: :teacher,
           url: school_teacher_login_path(@school),
           class: "mt-6 space-y-4" do |form| %>
+      <% if @login_school_years.many? %>
+        <fieldset class="space-y-2">
+          <legend class="text-sm font-medium"><%= t("users.teacher_sessions.school_year") %></legend>
+          <% @login_school_years.each do |school_year| %>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+              <%= form.radio_button :school_year_id, school_year.id,
+                    checked: school_year.id == @selected_school_year_id %>
+              <span><%= t("users.teacher_sessions.school_year_option.#{school_year.status}", year: school_year.year) %></span>
+            </label>
+          <% end %>
+        </fieldset>
+      <% elsif @active_school_year %>
+        <%= form.hidden_field :school_year_id, value: @active_school_year.id %>
+      <% end %>
+
       <%= form.label :login_id, t("users.teacher_sessions.login_id"), class: "block text-sm font-medium" %>
       <%= form.text_field :login_id,
             autofocus: true,

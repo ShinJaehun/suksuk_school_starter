@@ -65,13 +65,14 @@ RSpec.describe TeacherManagementPolicy do
     admin = create(:user, :admin)
     planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
     planning_member = create(:user, :teacher, school_year: planning_year,
-      school_role: 'member', login_id: 'planning-member')
+                                              school_role: 'member', login_id: 'planning-member')
     planning_manager = create(:user, :teacher, school_year: planning_year,
-      school_role: 'manager', login_id: 'planning-manager')
+                                               school_role: 'manager', login_id: 'planning-manager')
 
     expect(described_class.new(admin, planning_member).update_profile?).to eq(true)
     expect(described_class.new(manager, planning_member).update_profile?).to eq(true)
-    expect(described_class.new(manager, planning_manager).update_profile?).to eq(false)
+    expect(described_class.new(manager, planning_manager).update_profile?).to eq(true)
+    expect(described_class.new(planning_manager, planning_member).update_profile?).to eq(true)
     expect(described_class.new(member, planning_member).update_profile?).to eq(false)
   end
 
@@ -80,15 +81,30 @@ RSpec.describe TeacherManagementPolicy do
     other_manager = create(:user, :teacher, :active_annual_teacher,
                            annual_school: create(:school), annual_school_role: 'manager')
     planning_year = create(:school_year, school: school, year: 2027, status: :planning)
-    other_year_member = create(:user, :teacher, school_year: planning_year,
-                                                school_role: 'member', login_id: 'next-year-member')
+    planning_member = create(:user, :teacher, school_year: planning_year,
+                                              school_role: 'member', login_id: 'next-year-member')
+    planning_manager = create(:user, :teacher, school_year: planning_year,
+                                               school_role: 'manager', login_id: 'next-year-manager')
+    inactive_planning_member = create(:user, :teacher, school_year: planning_year,
+                                                       school_role: 'member', active: false,
+                                                       login_id: 'inactive-next-year-member')
+    archived_year = create(:school_year, :archived, school: school, year: 2025)
+    archived_member = create(:user, :teacher, school_year: archived_year,
+                                              school_role: 'member', login_id: 'archived-member')
 
     expect(described_class.new(admin, member).reissue_temporary_password?).to eq(true)
     expect(described_class.new(admin, manager).reissue_temporary_password?).to eq(true)
+    expect(described_class.new(admin, inactive_planning_member).reissue_temporary_password?).to eq(false)
+    expect(described_class.new(admin, archived_member).reissue_temporary_password?).to eq(false)
     expect(described_class.new(manager, member).reissue_temporary_password?).to eq(true)
     expect(described_class.new(manager, manager).reissue_temporary_password?).to eq(false)
+    expect(described_class.new(manager, planning_member).reissue_temporary_password?).to eq(true)
+    expect(described_class.new(manager, planning_manager).reissue_temporary_password?).to eq(true)
+    expect(described_class.new(manager, inactive_planning_member).reissue_temporary_password?).to eq(false)
+    expect(described_class.new(planning_manager, planning_member).reissue_temporary_password?).to eq(true)
+    expect(described_class.new(planning_manager, planning_manager).reissue_temporary_password?).to eq(false)
+    expect(described_class.new(planning_manager, member).reissue_temporary_password?).to eq(false)
     expect(described_class.new(manager, other_manager).reissue_temporary_password?).to eq(false)
-    expect(described_class.new(manager, other_year_member).reissue_temporary_password?).to eq(false)
     expect(described_class.new(manager, outside_teacher).reissue_temporary_password?).to eq(false)
   end
 
@@ -97,11 +113,11 @@ RSpec.describe TeacherManagementPolicy do
     planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
     archived_year = create(:school_year, :archived, school: school, year: manager.school_year.year - 1)
     planning_member = create(:user, :teacher, school_year: planning_year,
-      school_role: 'member', login_id: 'delete-member')
+                                              school_role: 'member', login_id: 'delete-member')
     planning_manager = create(:user, :teacher, school_year: planning_year,
-      school_role: 'manager', login_id: 'delete-manager')
+                                               school_role: 'manager', login_id: 'delete-manager')
     archived_teacher = create(:user, :teacher, school_year: archived_year,
-      school_role: 'member', login_id: 'delete-archived')
+                                               school_role: 'member', login_id: 'delete-archived')
 
     expect(described_class.new(admin, planning_member).destroy?).to eq(true)
     expect(described_class.new(manager, planning_member).destroy?).to eq(true)
@@ -128,17 +144,33 @@ RSpec.describe TeacherManagementPolicy do
     )
   end
 
-  it 'rejects manager roles outside the current operational context' do
-    planning_manager = create(:user, :teacher,
-                              school_year: create(:school_year, school: school, year: 2027),
-                              login_id: 'planning-manager', school_role: 'manager')
+  it 'allows an eligible active planning manager to use its planning Teacher scope' do
+    active_year = manager.school_year
+    planning_manager = create(
+      :user,
+      :teacher,
+      school_year: create(
+        :school_year,
+        school: school,
+        year: active_year.year + 1
+      ),
+      login_id: 'planning-manager',
+      school_role: 'manager'
+    )
+
+    expect(described_class.new(planning_manager, User).index?).to eq(true)
+    expect(described_class.new(planning_manager, User).access?).to eq(true)
+    expect(described_class::Scope.new(planning_manager, User).resolve).to contain_exactly(planning_manager)
+  end
+
+  it 'rejects inactive and archived manager actors' do
     archived_school = create(:school)
     archived_manager = create(:user, :teacher,
                               school_year: create(:school_year, :archived, school: archived_school, year: 2025),
                               login_id: 'archived-manager', school_role: 'manager')
     inactive_manager = manager.tap { |user| user.update!(active: false) }
 
-    [planning_manager, archived_manager, inactive_manager].each do |actor|
+    [archived_manager, inactive_manager].each do |actor|
       expect(described_class.new(actor, User).index?).to eq(false)
       expect(described_class.new(actor, User).access?).to eq(false)
       expect(described_class::Scope.new(actor, User).resolve).to be_empty

@@ -54,16 +54,18 @@ class TeachersController < ApplicationController
   end
 
   def edit
-    authorize @teacher, :update_profile?, policy_class: TeacherManagementPolicy
+    authorize @teacher, :edit?, policy_class: TeacherManagementPolicy
     @can_reissue_temporary_password = TeacherManagementPolicy.new(
       current_user,
       @teacher
-    ).reissue_temporary_password? && !@teacher.school_year.planning?
+    ).reissue_temporary_password?
     @can_destroy_planning_teacher = TeacherManagementPolicy.new(current_user, @teacher).destroy?
     prepare_form
   end
 
   def update
+    raise ActiveRecord::RecordNotFound if @teacher.inactive?
+
     authorize @teacher, :update_profile?, policy_class: TeacherManagementPolicy
     school = managed_school
     membership_grade = normalized_membership_grade
@@ -103,6 +105,12 @@ class TeachersController < ApplicationController
   end
 
   def deactivate
+    if @teacher.school_year&.planning? && @teacher.school_manager?
+      return redirect_to edit_teacher_path(@teacher, teacher_form_context_params),
+                         alert: t('teacher_status.planning_manager'),
+                         status: :see_other
+    end
+
     authorize @teacher, :deactivate_teacher?
     update_status(false)
   end
@@ -122,10 +130,11 @@ class TeachersController < ApplicationController
 
     if result.success?
       @temporary_password = result.temporary_password
+      @teacher_context_return_path = edit_teacher_path(@teacher, teacher_form_context_params)
       response.headers['Cache-Control'] = 'no-store'
       render :temporary_password
     else
-      redirect_to edit_teacher_path(@teacher),
+      redirect_to edit_teacher_path(@teacher, teacher_form_context_params),
                   alert: t('admin.teachers.temporary_password_reissue.failure'),
                   status: :see_other
     end
@@ -144,9 +153,10 @@ class TeachersController < ApplicationController
   def set_teacher
     if params[:school_year_id].present?
       @teacher_edit_school_year = explicit_teacher_management_year
-      @teacher = @teacher_edit_school_year.users.teacher.active.find(positive_id_param!(:id))
+      @teacher = @teacher_edit_school_year.users.teacher.find(positive_id_param!(:id))
     else
       @teacher = teacher_management_scope.find(params[:id])
+      raise ActiveRecord::RecordNotFound if @teacher.school_year&.planning?
     end
   end
 
@@ -171,7 +181,8 @@ class TeachersController < ApplicationController
       raise ActiveRecord::RecordNotFound
     end
 
-    @show_school_year_selector = current_user.admin? || current_user.current_operational_manager?
+    @show_school_year_selector = current_user.admin? || current_user.current_operational_manager? ||
+                                 current_user.planning_manager_session_eligible?
     @filter_schools = teacher_context_schools
     @selected_school = selected_teacher_context_school
     @school_year_options = allowed_teacher_context_years(@selected_school)
@@ -233,6 +244,9 @@ class TeachersController < ApplicationController
       return SchoolYear.where(id: years.map(&:id)).order(year: :desc)
     end
 
+
+    return SchoolYear.where(id: current_user.school_year_id) if current_user.planning_manager_session_eligible?
+
     SchoolYear.where(id: current_user.school_year_id)
   end
 
@@ -244,6 +258,7 @@ class TeachersController < ApplicationController
     end
 
     return nil if current_user.admin? && @selected_school.nil?
+    return current_user.school_year if current_user.planning_manager_session_eligible?
 
     @school_year_options.find_by!(status: :active)
   end
@@ -267,7 +282,8 @@ class TeachersController < ApplicationController
     return TeacherManagementPolicy.new(current_user, candidate).update_profile? if @selected_school_year.planning?
     return false unless @selected_school_year.active?
 
-    current_user.admin? || current_user.current_operational_manager?
+    current_user.admin? || current_user.current_operational_manager? ||
+      current_user.planning_manager_session_eligible?
   end
 
   def teacher_context_creatable?
@@ -303,6 +319,7 @@ class TeachersController < ApplicationController
     @selected_classroom_id = selected_classroom_id_for_form
     @planning_teacher_creation = @teacher.new_record? && @teacher_creation_school_year&.planning?
     @teacher_form_school_year = @teacher_creation_school_year || @teacher_edit_school_year
+    @teacher_lifecycle_context_params = teacher_form_context_params
     @teacher_form_path = if @teacher.persisted?
                            teacher_path(@teacher, teacher_form_context_params)
                          else
@@ -538,10 +555,12 @@ class TeachersController < ApplicationController
 
   def update_status(active)
     if @teacher.update(active: active, remember_created_at: nil)
-      redirect_to edit_teacher_path(@teacher),
+      redirect_to edit_teacher_path(@teacher, teacher_form_context_params),
                   notice: t(active ? 'teacher_status.reactivated' : 'teacher_status.deactivated'), status: :see_other
     else
-      redirect_to edit_teacher_path(@teacher), alert: t('teacher_status.failure'), status: :see_other
+      redirect_to edit_teacher_path(@teacher, teacher_form_context_params),
+                  alert: @teacher.errors.full_messages.to_sentence.presence || t('teacher_status.failure'),
+                  status: :see_other
     end
   end
 
@@ -557,7 +576,7 @@ class TeachersController < ApplicationController
       membership_grade: teacher.grade,
       role: teacher.school_role,
       classroom: teacher.assigned_classroom,
-      manageable: @teacher_context_mutable && TeacherManagementPolicy.new(current_user, teacher).update_profile?,
+      manageable: @teacher_context_mutable && TeacherManagementPolicy.new(current_user, teacher).edit?,
       edit_path: edit_teacher_path(teacher, teacher_context_params)
     }
   end

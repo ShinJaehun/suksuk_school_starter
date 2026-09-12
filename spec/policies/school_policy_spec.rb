@@ -105,6 +105,20 @@ RSpec.describe SchoolPolicy do
       expect(described_class.new(student, school).manage_managers?).to eq(false)
     end
 
+    it "lets an admin and the current own-School manager manage planning managers" do
+      admin = create(:user, :admin)
+      manager = annual_teacher(school: school, school_role: "manager")
+      other_manager = annual_teacher(school: other_school, school_role: "manager")
+      planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
+      planning_manager = create(:user, :teacher, school_year: planning_year,
+        login_id: "planning-manager", school_role: "manager")
+
+      expect(described_class.new(admin, school).manage_planning_managers?).to eq(true)
+      expect(described_class.new(manager, school).manage_planning_managers?).to eq(true)
+      expect(described_class.new(other_manager, school).manage_planning_managers?).to eq(false)
+      expect(described_class.new(planning_manager, school).manage_planning_managers?).to eq(false)
+    end
+
     it 'allows only an admin to execute rollover for an active School' do
       admin = create(:user, :admin)
       manager = annual_teacher(school: school, school_role: 'manager')

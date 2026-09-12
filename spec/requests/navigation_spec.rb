@@ -70,4 +70,19 @@ RSpec.describe 'Navigation', type: :request do
 
     expect(navbar_links).to include(classroom_path(classroom))
   end
+
+  it 'links a planning manager only to its explicit planning preparation contexts' do
+    school = create(:school)
+    active_year = create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    planning_manager = create(:user, :teacher, school_year: planning_year,
+                                               school_role: 'manager', login_id: 'navigation-manager')
+    context = { school_id: school.id, school_year_id: planning_year.id }
+    sign_in planning_manager
+
+    get school_planning_path(school)
+
+    expect(navbar_links).to include(teachers_path(context), classrooms_path(context))
+    expect(navbar_links).not_to include(teachers_path, classrooms_path)
+  end
 end

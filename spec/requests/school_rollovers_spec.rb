@@ -89,7 +89,7 @@ RSpec.describe 'SchoolYear rollover', type: :request do
 
     rollover
 
-    expect(response).to redirect_to(school_teacher_login_path(school))
+    expect(response).to redirect_to(root_path)
   end
 
   it 'requires authentication' do

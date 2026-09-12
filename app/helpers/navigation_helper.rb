@@ -21,6 +21,15 @@ module NavigationHelper
         navigation_item('navigation.classrooms', classrooms_path),
         navigation_item('navigation.teacher_management', teachers_path)
       ]
+    elsif context[:planning_manager]
+      planning_context = {
+        school_id: user.annual_school.id,
+        school_year_id: user.school_year_id
+      }
+      [
+        navigation_item('navigation.classrooms', classrooms_path(planning_context)),
+        navigation_item('navigation.teacher_management', teachers_path(planning_context))
+      ]
     elsif user.teacher?
       []
     else
@@ -29,7 +38,7 @@ module NavigationHelper
   end
 
   def teacher_classroom_navigation(context)
-    return unless context[:user]&.teacher? && !context[:manager]
+    return unless context[:user]&.teacher? && !context[:manager] && !context[:planning_manager]
 
     classrooms = context.fetch(:classrooms, [])
     {

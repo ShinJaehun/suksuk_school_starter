@@ -3,7 +3,10 @@ class SchoolYearsController < ApplicationController
   before_action :set_school
 
   def create
-    @school_year = @school.school_years.build(status: :planning)
+    @school_year = @school.school_years.build(
+      status: :planning,
+      year: @school.active_school_year&.year&.+(1)
+    )
     authorize @school_year
 
     @school_year = SchoolYears::CreatePlanning.call(

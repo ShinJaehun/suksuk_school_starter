@@ -196,7 +196,14 @@ RSpec.describe 'Planning Teacher deletion', type: :request do
 
     get edit_teacher_path(planning_teacher, context)
 
-    expect(response).to redirect_to(root_path)
+    expect(response).to have_http_status(:ok)
+    document = Nokogiri::HTML(response.body)
+    expect(document.at_css(
+      %(form[action="#{teacher_path(planning_teacher, context)}"] input[name="_method"][value="delete"])
+    )).to be_nil
+    expect(document.at_css(
+      %(form[action="#{deactivate_teacher_path(planning_teacher, context)}"])
+    )).to be_nil
   end
 
   it 'does not add a hard-delete control to an active Teacher edit page' do

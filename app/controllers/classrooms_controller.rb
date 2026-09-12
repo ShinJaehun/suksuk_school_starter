@@ -159,6 +159,8 @@ class ClassroomsController < ApplicationController
 
   def set_destroy_classroom
     unless params[:school_id].present? || params[:school_year_id].present?
+      raise ActiveRecord::RecordNotFound if current_user.planning_manager_session_eligible?
+
       @classroom = policy_scope(Classroom).find(params[:id])
       return
     end
@@ -266,7 +268,7 @@ class ClassroomsController < ApplicationController
   end
 
   def current_user_school_manager?
-    current_user&.current_operational_manager?
+    current_user&.current_operational_manager? || current_user&.planning_manager_session_eligible?
   end
 
   def prepare_classroom_index_context
@@ -280,7 +282,7 @@ class ClassroomsController < ApplicationController
     @school_year_options = allowed_classroom_context_years(@selected_school)
     @selected_school_year = selected_classroom_context_year
     @classroom_context_read_only = @selected_school_year.present? &&
-                                   (!@selected_school_year.active? || @selected_school.inactive?)
+                                   (@selected_school_year.archived? || @selected_school.inactive?)
     @classroom_context_creatable = classroom_context_creatable?
     @new_classroom_path = new_classroom_path(classroom_context_params)
     @classroom_edit_context_params = @selected_school_year&.planning? ? classroom_context_params : {}
@@ -311,6 +313,7 @@ class ClassroomsController < ApplicationController
   def allowed_classroom_context_years(school)
     return SchoolYear.none unless school
     return school.school_years.order(year: :desc) if current_user.admin?
+    return SchoolYear.where(id: current_user.school_year_id) if current_user.planning_manager_session_eligible?
     return SchoolYear.where(id: current_user.school_year_id) unless current_user_school_manager?
 
     years = school.school_years.archived.to_a << current_user.school_year
@@ -327,6 +330,7 @@ class ClassroomsController < ApplicationController
     end
 
     return nil if current_user.admin? && @selected_school.nil?
+    return current_user.school_year if current_user.planning_manager_session_eligible?
 
     @school_year_options.find_by!(status: :active)
   end

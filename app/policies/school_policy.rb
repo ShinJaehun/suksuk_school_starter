@@ -2,7 +2,10 @@ class SchoolPolicy < ApplicationPolicy
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.all if admin?
-      return scope.active.where(id: user.annual_school.id) if teacher?
+      if user.is_a?(User) &&
+         (user.current_operational_teacher? || user.planning_manager_session_eligible?)
+        return scope.active.where(id: user.annual_school.id)
+      end
 
       scope.none
     end
@@ -22,6 +25,13 @@ class SchoolPolicy < ApplicationPolicy
 
   def manage_managers?
     record.active? && admin?
+  end
+
+  def manage_planning_managers?
+    return false unless record.active?
+    return true if admin?
+
+    school_manager? && user.annual_school == record
   end
 
   def rollover?

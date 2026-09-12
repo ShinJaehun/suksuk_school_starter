@@ -31,6 +31,7 @@ class User < ApplicationRecord
             if: :teacher?
   validates :school_year, :login_id, :school_role, :grade, absence: true, unless: :teacher?
   validate :annual_school_year_immutable, on: :update, if: :teacher?
+  validate :planning_manager_must_remain_active, if: :inactive_planning_manager?
 
   enum :role, { teacher: 'teacher', admin: 'admin' }
   scope :active, -> { where(active: true) }
@@ -89,6 +90,28 @@ class User < ApplicationRecord
     current_operational_teacher? && school_manager?
   end
 
+  def planning_manager_session_eligible?
+    return false unless active_teacher? && school_manager?
+
+    school = annual_school
+    return false unless school&.active? && school_year&.planning?
+    return false unless school.school_years.planning.where(id: school_year_id).exists?
+
+    active_year = school.school_years.active.first
+    active_year.present? && school_year.year == active_year.year + 1
+  end
+
+  def planning_preparation_operator_for?(target_school_year)
+    return false unless target_school_year&.planning? && target_school_year.school&.active?
+    return false unless target_school_year.school.school_years.planning.where(id: target_school_year.id).exists?
+
+    if current_operational_manager?
+      annual_school == target_school_year.school && target_school_year.year == school_year.year + 1
+    else
+      planning_manager_session_eligible? && school_year == target_school_year
+    end
+  end
+
   def annual_school
     school_year&.school
   end
@@ -137,7 +160,19 @@ class User < ApplicationRecord
     return unless assignment
     return if assignment.classroom.school_year.archived?
 
-    assignment.update!(ended_on: Date.current)
+    if assignment.classroom.school_year.planning?
+      assignment.destroy!
+    else
+      assignment.update!(ended_on: Date.current)
+    end
+  end
+
+  def planning_manager_must_remain_active
+    errors.add(:base, I18n.t('teacher_status.planning_manager'))
+  end
+
+  def inactive_planning_manager?
+    teacher? && inactive? && school_manager? && school_year&.planning?
   end
 
   def avatar_key_allowed_for_role
