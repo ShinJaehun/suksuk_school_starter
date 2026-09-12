@@ -2,7 +2,7 @@
 
 ## 목적
 
-이 문서는 다음 planning SchoolYear의 annual teacher User, Classroom과 HomeroomAssignment 준비 및 승인된 B10 actual SchoolYear rollover의 canonical contract를 정의한다. B10 이전의 preparation operation은 active SchoolYear를 변경하지 않는다.
+이 문서는 다음 planning SchoolYear의 annual teacher User, Classroom과 HomeroomAssignment 준비, B10 actual SchoolYear rollover와 B11 archived read-only authority의 canonical contract를 정의한다. B10 이전의 preparation operation은 active SchoolYear를 변경하지 않는다.
 
 예를 들어 2026 active와 2027 planning이 함께 있을 때 허용된 actor는 2027 준비 data만 명시적으로 생성·수정할 수 있다. Planning은 rollover 전 staging이자 safety boundary다. Teacher/Classroom CRUD를 복제한 generic planning workspace나 독립된 제품 hierarchy는 만들지 않되, SchoolYear 전체 준비 상태와 cross-resource operation을 모으는 얇은 다음 학년도 준비 페이지를 둔다.
 
@@ -14,7 +14,7 @@
 - Teacher User와 Classroom의 `school_year_id`는 생성 후 변경하지 않는다.
 - `/teachers`와 `/classrooms`는 active-year canonical surface로 유지한다.
 - Planning teacher는 credential을 준비할 수 있지만 planning 상태에서는 normal runtime login을 할 수 없다.
-- Planning Student 준비, rollover reversal/recovery, archived authentication과 historical UI는 이 phase 밖이다.
+- Planning Student 준비, rollover reversal/recovery, archived authentication과 별도 generic historical UI는 이 phase 밖이다.
 
 ## Actor/authority matrix
 
@@ -189,6 +189,51 @@ Archived SchoolYear Teacher는 rollover 이후 current operational authority를 
 현재 실제 연도와 무관한 미래 SchoolYear/archived 상태는 development 또는 browser 검증 전에 Rails console로 최소 test state를 구성할 수 있다. Console은 fixture/state setup에만 사용하고 실제 transition은 production rollover implementation을 통해 검증한다. Production helper/module/debug endpoint로 시간을 가장하지 않는다.
 
 B10은 자동·날짜 기반 rollover, next planning SchoolYear 자동 생성, Teacher/Classroom/Student 복사·승계, rollback/undo UI, generic lifecycle engine과 audit framework 확장을 포함하지 않는다.
+
+## Archived SchoolYear read-only authority
+
+B11은 Teacher User를 계속 annual operational account로 유지하면서 historical School data의 stewardship를 current operational manager에게 승계한다. Annual Teacher account는 영구적인 개인 identity가 아니라 특정 SchoolYear 운영을 위해 학교가 발급한 업무 계정이다. Persistent TeacherAccount, Person identity, cross-year membership/account linking 또는 `previous_user_id`를 도입하지 않는다.
+
+### Archive authority와 승계
+
+- Global admin은 기존 global authority 범위에서 모든 School의 active, planning과 archived SchoolYear를 조회할 수 있다.
+- Current operational manager는 자기 School의 current active 운영, immediate planning 준비와 모든 archived SchoolYear read-only 조회가 가능하다.
+- Archive authority는 archived annual User의 과거 role이 아니라 현재 active SchoolYear의 operational manager authority에서 나온다.
+- Current ordinary Teacher는 자기 current operational 범위만 사용하며 archived SchoolYear를 조회할 수 없다.
+- Archived SchoolYear의 former manager와 former Teacher는 로그인하거나 archived data를 직접 조회할 수 없다. 과거 manager role은 지속적인 archive authority가 아니다.
+
+Rollover 전 current manager는 자기 School의 기존 archive를 조회할 수 있다. Rollover 후 이전 manager의 annual account는 archived되어 authority를 잃고 새 active SchoolYear manager가 같은 School의 모든 과거 archive stewardship를 이어받는다. 과거 자료가 필요한 former Teacher는 current manager 또는 global admin을 통해 확인한다.
+
+### Archived read-only 범위
+
+Global admin과 authorized current manager는 현재 서비스가 SchoolYear-aware 조회 surface를 제공하는 범위에서 다음 archived data를 조회할 수 있다.
+
+- Archived Teacher 목록과 상세
+- Archived Classroom 목록과 상세
+- Classroom의 historical HomeroomAssignment 정보
+- Archived Classroom의 Student/roster 정보
+- 그 밖에 이미 존재하는 archived operational record의 조회 surface
+
+별도 `/archives` CRUD나 generic archive dashboard를 만들지 않는다. 기존 `/teachers?school_id=...&school_year_id=...`와 `/classrooms?school_id=...&school_year_id=...` 같은 SchoolYear-aware surface를 재사용한다. Current manager의 selector에는 자기 School의 archived years를 포함할 수 있지만 ordinary Teacher selector는 확장하지 않는다. Global admin의 기존 multi-School/year selector semantics를 유지한다.
+
+Current manager의 `/teachers`, `/classrooms` 기본 context는 계속 current active SchoolYear다. Archived context는 authorized actor가 명시적으로 선택한 경우에만 사용하고 오래된 year를 default나 fallback으로 추측하지 않는다. Current manager는 query parameter, record id 또는 detail URL 조작으로 다른 School archive를 조회할 수 없으며 global admin만 cross-School archive authority를 가진다.
+
+Archived context에서는 조회만 허용한다. 최소 다음 mutation과 그 UI control을 모두 금지한다.
+
+- Teacher 생성, profile/grade 수정, hard delete, deactivate/reactivate와 temporary credential 발급·재발급
+- Manager 지정·교체·해제
+- Classroom 생성, grade/class_label 수정, hard delete와 deactivate/reactivate
+- HomeroomAssignment 생성·교체·해제
+- Student 생성·수정·삭제와 roster mutation
+- 그 밖의 SchoolYear operational mutation
+
+Read-only는 control을 숨기는 것만으로 충족하지 않는다. Direct mutation request도 controller/policy/model/service boundary에서 fail closed해야 하며 archived association을 active/planning context로 fallback하지 않는다.
+
+### Authentication과 annual-account 원칙
+
+Archived browsing을 위해 annual Teacher authentication을 완화하지 않는다. `TeacherSessionsController`는 current active SchoolYear Teacher만 인증하며, rollover 전에 로그인한 Teacher의 SchoolYear가 archived되면 기존 runtime guard가 다음 request에서 session을 종료한다. Current manager는 자신의 current active annual account로 로그인한 상태에서 archive를 조회한다.
+
+Teacher self-signup 없이 planning 단계의 관리자 provisioning, annual credential와 temporary password, 학년도별 role/grade/Classroom 및 rollover 후 새 annual Teacher의 운영 시작이라는 현재 모델을 유지한다. Archived credential을 재발급하거나 오래된 password를 historical access 수단으로 사용하지 않는다. 개인별 `내 과거 기록`, identity reconciliation과 archive access delegation은 실제 필요가 확인될 때 별도 specification한다.
 
 ## Temporary credential contract
 
@@ -404,6 +449,21 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 70. 이전 manager는 archived SchoolYear 소속이 되어 current operational authority를 잃고 새 active Teacher의 login은 기존 authentication eligibility를 따른다.
 71. Session revocation 구현 필요성은 현재 session 구조를 확인해 결정하며 B10 계약만을 위해 generic session-version framework를 만들지 않는다.
 72. 미래 연도 검증은 Rails console의 최소 test state로 준비할 수 있지만 실제 transition은 production rollover operation으로 검증하고 time-travel/debug endpoint를 만들지 않는다.
+73. Global admin은 모든 School의 archived SchoolYear를 기존 global scope에서 조회할 수 있다.
+74. Current operational manager는 자기 School의 모든 archived SchoolYear를 read-only로 조회할 수 있다.
+75. Current manager의 기본 Teacher/Classroom context는 active year이고 archived year는 명시적으로 선택한 경우에만 사용한다.
+76. Current ordinary Teacher는 archived SchoolYear를 조회할 수 없다.
+77. Former manager와 former ordinary Teacher는 archived annual account로 로그인하거나 archive authority를 행사할 수 없다.
+78. 과거 manager role은 지속 archive authority의 근거가 아니며 rollover 후 stewardship는 새 current manager에게 승계된다.
+79. Current manager는 다른 School의 archived context나 record를 조회할 수 없다.
+80. Archived Teacher와 credential은 read-only이며 생성, profile/grade/lifecycle/delete와 temporary password mutation을 허용하지 않는다.
+81. Archived Classroom은 read-only이며 생성, 구조/lifecycle 변경과 delete를 허용하지 않는다.
+82. Archived Student/roster는 read-only이며 생성·수정·삭제와 roster mutation을 허용하지 않는다.
+83. Archived HomeroomAssignment는 read-only이며 연결·교체·해제를 허용하지 않는다.
+84. Archived mutation control을 UI에 표시하지 않고 direct mutation request도 server-side boundary에서 fail closed한다.
+85. Archived browsing은 기존 SchoolYear-aware Teacher/Classroom surface를 재사용하고 별도 archive CRUD/dashboard를 만들지 않는다.
+86. Archived browsing을 위해 Teacher login/runtime guard를 완화하지 않는다.
+87. Annual Teacher User, annual credential와 학년도별 role/grade/Classroom 모델을 유지하고 persistent personal identity나 cross-year account linking을 도입하지 않는다.
 
 ## Non-goals
 
@@ -431,7 +491,10 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - Production time-travel/debug module 또는 endpoint
 - Rollover audit framework 확장
 - Eligibility override, admin 강제 전환과 eligibility history/audit log
-- Archived read-only UI, archived login과 historical reporting
+- Former Teacher의 archived login, former manager 특별 권한과 current ordinary Teacher archive access
+- 개인별 과거 기록, Teacher identity continuity, persistent TeacherAccount와 annual account linking
+- Archive access delegation, temporary archive permission과 export/download
+- Generic archive management framework 또는 별도 archive dashboard
 
 ## 후속 phase와의 경계
 
@@ -447,7 +510,8 @@ Phase B는 다음의 작은 implementation 단위로 나눈다.
 8. B8 — preparation page의 정보성 planning 준비 현황과 최소 rollover invariant 경계
 9. B9 — manager exactly one business eligibility와 rollover target structural safety contract
 10. B10 — global-admin-only atomic active/archive SchoolYear rollover contract
+11. B11 — current-manager stewardship 기반 archived SchoolYear read-only authority
 
 각 단위는 focused spec과 human verification을 거친다. 기본 query에 planning을 섞지 않고 explicit SchoolYear context를 별도로 resolve하며 lifecycle별 controller/view를 복제하지 않는다. 다음 학년도 준비 페이지는 status와 cross-resource entry/orchestration만 담당하고 Teacher/Classroom CRUD를 복제하지 않는다.
 
-Student preparation은 Classroom과 teacher/assignment 계약이 안정된 뒤 별도 human-reviewed bounded phase로 진행한다. Archived read-only enforcement는 rollover보다 먼저 구현한다. B10 implementation은 B9 target eligibility를 입력으로 삼고 global-admin-only confirmation, lock 이후 재검증과 atomic transition을 보존해야 한다.
+Student preparation은 Classroom과 teacher/assignment 계약이 안정된 뒤 별도 human-reviewed bounded phase로 진행한다. B10 implementation은 B9 target eligibility를 입력으로 삼고 global-admin-only confirmation, lock 이후 재검증과 atomic transition을 보존해야 한다. B11은 archived annual account를 재활성화하지 않고 current manager에게 같은 School의 read-only stewardship를 부여한다.
