@@ -16,7 +16,7 @@ ko:
       manager_title: "학교 전체 학급"
       teacher_title: "내 교실"
       context_title: "%{year}학년도 · %{status}"
-      context_read_only: "이 학년도의 교실 정보는 조회만 할 수 있습니다."
+      context_read_only: "이 학년도의 기존 교실 정보는 조회만 할 수 있습니다."
       school_year: "학년도"
       school_year_option: "%{year}학년도 · %{status}"
       unspecified: "미지정"

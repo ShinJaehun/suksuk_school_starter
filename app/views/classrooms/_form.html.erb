@@ -1,4 +1,9 @@
 <%= form_with model: classroom, local: true do |f| %>
+  <% if @classroom_creation_context_explicit && @classroom_creation_school_year %>
+    <%= hidden_field_tag :school_id, @classroom_creation_school_year.school_id %>
+    <%= hidden_field_tag :school_year_id, @classroom_creation_school_year.id %>
+  <% end %>
+
   <div class="space-y-6">
     <% if classroom.errors[:base].any? %>
       <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -6,7 +11,7 @@
       </div>
     <% end %>
 
-    <% if policy(classroom).manage_structure? %>
+    <% if @classroom_creation_structure_allowed || policy(classroom).manage_structure? %>
       <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="mb-4">
           <h2 class="text-base font-semibold text-slate-900"><%= t("classrooms.form.basic_info") %></h2>
@@ -26,7 +31,7 @@
         </div>
 
         <div class="mt-5 grid gap-4 sm:max-w-3xl sm:grid-cols-2">
-          <% if current_user.admin? && classroom.new_record? %>
+          <% if current_user.admin? && classroom.new_record? && !@classroom_creation_context_explicit %>
             <div class="space-y-2">
               <% school_has_errors = classroom.errors[:school_year].any? %>
               <%= label_tag "classroom_school_id", t("classrooms.form.school_label"), class: "block text-sm font-semibold text-slate-800" %>
@@ -38,7 +43,7 @@
                 <p class="text-sm text-rose-600"><%= classroom.errors.full_messages_for(:school_year).to_sentence %></p>
               <% end %>
             </div>
-          <% elsif classroom.persisted? || current_user.school_manager? %>
+          <% elsif classroom.persisted? || @classroom_creation_school_year || current_user.school_manager? %>
             <div class="space-y-2">
               <span class="block text-sm font-semibold text-slate-800"><%= t("classrooms.form.school_label") %></span>
               <p class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"><%= classroom.school_year.school.name %></p>

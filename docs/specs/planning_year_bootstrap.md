@@ -24,7 +24,8 @@
 | Planning teacher member bulk create | 모든 active School | 자기 School | 불가 |
 | Planning teacher member edit/deactivate/reactivate/credential reissue | 모든 active School | 자기 School | 불가 |
 | Planning manager 지정·교체·해제 및 manager account mutation | 모든 active School | 불가 | 불가 |
-| Planning Classroom bulk create/edit/deactivate/reactivate | 모든 active School | 자기 School | 불가 |
+| Classroom 단건 create | 선택한 active School의 active/planning SchoolYear | 자기 active School의 current active와 바로 다음 planning SchoolYear | 불가 |
+| Planning Classroom edit/deactivate/reactivate | 모든 active School | 자기 School | 불가 |
 | Planning HomeroomAssignment 연결·변경·해제 | 모든 active School | 자기 School | 불가 |
 
 여기서 current operational manager는 active User, active SchoolYear, active School과 annual manager role을 모두 만족하는 actor다. Planning 또는 archived annual account에 manager role이 있어도 preparation authority를 얻지 않는다.
@@ -94,21 +95,28 @@ Current operational manager는 active planning member 중 한 명을 후임 mana
 
 기존 credential service의 내부 transaction은 outer transaction에 참여할 수 있지만, 현재 active-year `Teachers::SaveWithAssignment`는 active SchoolYear lookup과 단일-row assignment 흐름을 결합하므로 planning batch를 위해 `active OR planning`으로 확장하지 않는다.
 
-## Planning Classroom bulk contract
+## Planning Classroom single-create contract
 
-한 요청은 한 School의 하나의 planning SchoolYear에 여러 Classroom을 생성한다. 각 row는 grade 1..6과 `class_label`을 가진다.
+Planning Classroom 준비의 기본 경로는 별도 planning surface나 bulk 전용 workflow가 아니다. 기존 `/classrooms/new`와 `POST /classrooms`를 명시적인 School/SchoolYear context와 함께 재사용하여 한 번에 하나의 Classroom을 생성한다.
 
-- `school_year_id`, School id, active 상태와 student login token은 client가 결정하지 않는다.
-- Server가 resolved planning SchoolYear와 active 상태를 지정한다.
-- `class_label` trimming 및 `반` suffix normalization, 길이·형식 validation과 `(school_year_id, grade, class_label)` uniqueness를 기존 Classroom 계약과 DB index에서 재사용한다.
-- Active year의 Classroom을 복사하거나 동일 label을 근거로 연결하지 않는다.
-- Batch 내부에서 normalization 후 같은 grade/label이 중복되면 DB write 전에 각 row 오류로 보고한다.
+- Global admin은 선택한 active School의 active 또는 planning SchoolYear에 생성할 수 있다.
+- Current operational manager는 자기 School의 current active SchoolYear와 바로 다음 planning SchoolYear에 생성할 수 있다.
+- Ordinary teacher와 그 밖의 actor는 Classroom을 생성할 수 없다.
+- Archived SchoolYear에는 actor와 관계없이 생성할 수 없다.
+- Explicit `school_id`와 `school_year_id`는 client가 제출하는 context일 뿐 authority source가 아니다. Server가 actor의 authorized School scope에서 School을 resolve하고 SchoolYear의 School 소속, 허용 status와 manager의 바로 다음 planning year 조건을 매 request에서 다시 확인한다.
+- Malformed id, School과 SchoolYear가 다른 조합, actor scope 밖의 School, 허용되지 않은 SchoolYear와 archived context는 다른 active/planning year로 fallback하지 않고 fail closed한다.
+- Planning context에서 생성된 Classroom의 `school_year_id`는 server가 선택·승인한 planning SchoolYear로 지정한다. Active year의 Classroom을 복사하거나 동일 label을 근거로 연결하지 않는다.
+- `class_label` trimming 및 `반` suffix normalization, 길이·형식 validation과 `(school_year_id, grade, class_label)` uniqueness는 기존 Classroom 계약과 DB index를 재사용한다.
+- Validation 또는 persistence가 실패하면 선택한 School과 SchoolYear context를 form에 유지한다. 실패를 이유로 active SchoolYear로 돌아가거나 다른 year를 추측하지 않는다.
+- Planning 생성 성공 후에는 해당 School과 planning SchoolYear가 선택된 `/classrooms` context로 복귀한다.
+- 기존 active-year Classroom 생성 동작과 inactive School에 대한 validation/error 응답 계약은 유지한다.
+- Planning Classroom 생성에서는 Student나 HomeroomAssignment를 함께 생성·복사·연결하지 않는다. Teacher 준비와 Classroom 준비 사이에도 선행 순서 precondition을 두지 않는다.
 
-Teacher bulk와 Classroom bulk는 서로 별개의 transaction이다. 둘 중 하나를 먼저 완료해야 다른 하나를 생성할 수 있다는 domain precondition은 두지 않는다.
+여러 Classroom을 한 번에 생성하는 bulk workflow는 현재 canonical 필수 경로가 아니다. 필요성이 별도로 확인되면 단건 생성 계약을 우회하지 않는 optional enhancement로 다시 specification하고 승인받는다.
 
 ## HomeroomAssignment contract
 
-Teacher와 Classroom 준비 뒤 별도의 `담임 연결` 단계에서 planning HomeroomAssignment를 관리한다. Teacher/Classroom 생성 batch에 담임 입력을 강제하지 않는다.
+Teacher와 Classroom 준비 뒤 별도의 `담임 연결` 단계에서 planning HomeroomAssignment를 관리한다. Teacher bulk나 Classroom 단건 생성에 담임 입력을 강제하지 않는다.
 
 - Teacher와 Classroom은 모두 같은 resolved planning SchoolYear에 속해야 한다.
 - Teacher와 Classroom은 active이고 target School도 active여야 한다.
@@ -151,34 +159,34 @@ Planning은 수정 가능한 준비 context지만 archived data처럼 보존이 
 
 ## Transaction, locking과 atomicity
 
-각 teacher batch, Classroom batch, assignment batch, teacher lifecycle/credential operation과 manager designation은 독립된 transaction boundary다.
+각 teacher batch, Classroom 단건 생성, assignment batch, teacher lifecycle/credential operation과 manager designation은 독립된 transaction boundary다.
 
 - Request 시작 시 actor와 explicit School을 authorize하고 planning context를 server-side로 resolve한다.
 - Transaction 안에서 target School과 planning SchoolYear를 deterministic하게 lock한다.
 - Lock 이후 actor가 여전히 global admin인지 또는 그 School의 current operational manager인지, School이 active인지, SchoolYear가 여전히 그 School의 유일한 planning context인지 재검증한다.
 - 관련 persisted teacher, Classroom, current HomeroomAssignment와 manager row는 id 순서 등 deterministic order로 필요한 범위만 lock한다.
-- Batch 전체를 선검증한 뒤 저장하며 한 row라도 실패하면 전체 rollback한다.
-- DB unique constraint 위반은 성공으로 간주하거나 부분 결과로 바꾸지 않고 batch failure로 변환한다.
-- 실패한 batch는 teacher, Classroom, credential event, planning assignment 변경과 plaintext result를 일부라도 남기지 않는다.
+- Batch operation은 전체를 선검증한 뒤 저장하며 한 row라도 실패하면 전체 rollback한다.
+- DB unique constraint 위반은 성공이나 implicit update로 간주하지 않고 해당 operation의 실패로 처리한다.
+- 실패한 operation은 teacher, Classroom, credential event 또는 planning assignment 변경을 일부라도 남기지 않는다.
 
-Teacher batch와 Classroom batch 사이의 전체 wizard transaction은 만들지 않는다. 사용자는 각 성공 단계를 저장한 뒤 다음 준비 작업을 진행한다.
+Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 만들지 않는다. 사용자는 각 성공 단계를 저장한 뒤 다음 준비 작업을 진행한다.
 
 ## Row validation, error와 duplicate handling
 
-- 모든 field가 비어 있는 row는 batch 입력에서 제외한다. 하나 이상의 field만 입력된 불완전한 row는 validation error로 처리한다.
-- 오류는 row 번호와 field를 식별할 수 있게 반환하되 다른 School의 resource 존재 여부를 노출하지 않는다.
-- Normalization 후 batch 내부 duplicate와 target planning SchoolYear의 existing row duplicate를 모두 검사한다.
-- Duplicate `login_id` 또는 Classroom grade/label이 있으면 기존 row를 update하거나 skip하지 않는다.
-- Retry 시 이미 저장된 batch를 성공으로 오인하지 않는다. 중복은 명시적 실패이며 사용자가 existing planning data를 확인해 수정한다.
-- 입력 순서와 상관없이 모든 유효 row만 저장하는 partial success는 허용하지 않는다.
+- Teacher bulk에서 모든 field가 비어 있는 row는 입력에서 제외한다. 하나 이상의 field만 입력된 불완전한 row는 validation error로 처리한다.
+- Teacher bulk 오류는 row 번호와 field를 식별할 수 있게 반환하되 다른 School의 resource 존재 여부를 노출하지 않는다.
+- Teacher bulk는 normalization 후 batch 내부 duplicate와 target planning SchoolYear의 existing row duplicate를 모두 검사한다.
+- Duplicate `login_id`는 기존 row를 update하거나 skip하지 않는다. Classroom 단건 생성의 duplicate grade/label은 기존 Classroom validation과 DB constraint에 따라 실패한다.
+- Retry 시 이미 저장된 teacher batch나 Classroom을 성공으로 오인하지 않는다. 중복은 명시적 실패이며 사용자가 existing planning data를 확인해 수정한다.
+- Teacher bulk에서 입력 순서와 상관없이 일부 유효 row만 저장하는 partial success는 허용하지 않는다.
 
 ## Cross-School/cross-year defense
 
-- SchoolYear는 form field나 hidden parameter로 신뢰하지 않고 authorized School의 planning relation에서 resolve한다.
+- SchoolYear와 School id는 explicit query/form context로 전달할 수 있지만 신뢰하지 않고 actor에게 authorized된 School/SchoolYear scope에서 resolve한다.
 - Manager가 다른 School id를 URL, query, nested parameter 또는 record id로 제출해도 자기 current operational School 밖으로 scope를 넓히지 못한다.
 - Teacher, Classroom과 HomeroomAssignment id는 resolved planning SchoolYear의 association scope에서 조회한다.
-- Submitted `school_year_id`, `school_id`, `role`, `school_role`, active/status 또는 credential field는 permit하지 않는다.
-- Global admin도 School과 SchoolYear가 일치하지 않거나 target이 planning이 아니면 실패한다.
+- Submitted `school_year_id`와 `school_id`는 Classroom의 mass-assigned attributes로 permit하지 않는다. `role`, `school_role`, active/status 또는 credential field도 permit하지 않는다.
+- Classroom 단건 생성의 global admin은 일치하는 active 또는 planning context만 사용할 수 있다. Manager는 자기 School의 current active 또는 바로 다음 planning context만 사용할 수 있다.
 - Stale form 처리 시 다른 SchoolYear로 fallback하지 않는다. 같은 `/teachers`·`/classrooms` surface를 사용하더라도 request마다 선택된 context와 현재 권한을 다시 확인한다.
 
 ## Acceptance criteria
@@ -189,10 +197,10 @@ Teacher batch와 Classroom batch 사이의 전체 wizard transaction은 만들�
 4. Manager designation/교체/해제와 planning manager account mutation은 teacher bulk와 분리된 global-admin-only operation이다. Current operational manager의 후보 제안은 role이나 readiness를 변경하지 않는다.
 5. Teacher batch의 모든 row와 credential audit event가 한 transaction에서 commit되거나 전체 rollback된다.
 6. 성공한 temporary passwords만 no-store 결과에서 한 번 표시되고 평문은 저장·재표시되지 않는다.
-7. Classroom bulk는 resolved planning SchoolYear에만 새 row를 만들고 기존 normalization, validation과 unique DB index를 유지한다.
-8. Teacher와 Classroom bulk는 normalization 후 batch 내부 및 existing planning data duplicate를 명시적으로 거부하며 partial success나 implicit update를 하지 않는다.
+7. Classroom 준비는 기존 `/classrooms/new`와 `POST /classrooms`에서 단건 생성하며, 선택·승인된 active 또는 planning SchoolYear에만 새 row를 만들고 기존 normalization, validation, unique DB index와 inactive-School 실패 계약을 유지한다.
+8. Classroom create context의 malformed, cross-School, unauthorized 또는 archived 입력은 fail closed하며 validation 실패 시 선택 context를 유지하고 planning 성공 후 해당 `/classrooms` context로 복귀한다.
 9. HomeroomAssignment는 같은 planning SchoolYear, 같은 grade, active participants와 current uniqueness를 요구하고 cross-year 연결을 거부한다. `started_on`은 해당 SchoolYear의 3월 1일이며 planning 중 변경·해제는 기존 row를 삭제해 ended history를 만들지 않는다.
-10. Planning teacher/Classroom 생성과 담임 연결은 단계적으로 분리되며 School overview가 활성 teacher 수, 활성 Classroom 수, 담임 연결 현황과 manager 준비 상태 및 entry를 제공한다.
+10. Planning teacher/Classroom 생성과 담임 연결은 단계적으로 분리되며 Classroom 단건 생성은 Student나 담임을 함께 생성·연결하지 않는다. School overview는 활성 teacher 수, 활성 Classroom 수, 담임 연결 현황과 manager 준비 상태 및 entry를 제공한다.
 11. Planning teacher의 준비 제외는 assignment 삭제 후 deactivation, 재포함은 새 temporary credential 발급과 함께 원자적으로 수행하며 account/credential audit를 보존한다.
 12. Planning Classroom의 준비 제외는 assignment 삭제 후 deactivation이며 재포함은 같은 row를 활성화하고 restrict-with-error 관계를 우회하지 않는다.
 13. 모든 mutation은 lock 이후 authority, active School, planning context와 record ownership을 재검증하고 DB conflict를 포함한 실패에서 기존 active year와 planning data를 보존한다.
@@ -210,6 +218,7 @@ Teacher batch와 Classroom batch 사이의 전체 wizard transaction은 만들�
 - Planning teacher normal login
 - Manager용 `/admin/*` 개방
 - Generic batch/workflow/state-machine/context framework
+- Planning Classroom bulk 전용 workflow. 향후 필요하면 단건 생성 계약을 보존하는 optional enhancement로 별도 specification한다.
 - Permanent Teacher identity 또는 연도별 User 자동 연결
 - Rollover readiness 실행, rollover, reversal/recovery와 UI
 - Archived read-only UI, archived login과 historical reporting
@@ -222,8 +231,9 @@ Phase B는 다음의 작은 implementation 단위로 나눈다.
 2. B2 — 기존 `/teachers`의 explicit planning context와 member teacher bulk create/one-time credential result
 3. B3 — 같은 teacher surface의 planning edit/deactivate/reactivate 및 credential reissue
 4. B4 — 후임 manager 후보 제안과 global-admin-only 최종 designation
-5. B5 — 기존 `/classrooms`의 explicit planning context와 bulk create/edit/deactivate/reactivate
-6. B6 — 같은 SchoolYear context 안의 planning HomeroomAssignment 연결·변경·해제
+5. B5a — 기존 `/classrooms/new`와 `POST /classrooms`의 explicit active/planning context 단건 create
+6. B5b — 같은 classroom surface의 planning edit/deactivate/reactivate
+7. B6 — 같은 SchoolYear context 안의 planning HomeroomAssignment 연결·변경·해제
 
 각 단위는 focused spec과 human verification을 거친다. 기본 query에 planning을 섞지 않고 explicit SchoolYear context를 별도로 resolve하며 lifecycle별 controller/view를 복제하지 않는다. B1에서 generic dashboard를 만들지 않는다.
 

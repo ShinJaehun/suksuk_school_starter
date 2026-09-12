@@ -72,6 +72,7 @@ class ClassroomsController < ApplicationController
 
   def new
     authorize Classroom
+    prepare_classroom_creation_context
     @classroom = Classroom.new
     assign_classroom_school_year
     prepare_classroom_form
@@ -79,6 +80,7 @@ class ClassroomsController < ApplicationController
 
   def create
     authorize Classroom
+    prepare_classroom_creation_context
     @classroom = Classroom.new
     assign_classroom_school_year
     @classroom.assign_attributes(classroom_params)
@@ -88,7 +90,7 @@ class ClassroomsController < ApplicationController
       prepare_classroom_form
       render :new, status: :unprocessable_content
     elsif @classroom.save
-      redirect_to classroom_path(@classroom), notice: t('classrooms.create.success')
+      redirect_to classroom_creation_success_path, notice: t('classrooms.create.success')
     else
       prepare_classroom_form
       render :new, status: :unprocessable_content
@@ -159,6 +161,7 @@ class ClassroomsController < ApplicationController
 
   def structure_settings_allowed?
     return false unless defined?(@classroom) && @classroom.present?
+    return true if @classroom_creation_structure_allowed
 
     policy(@classroom).manage_structure?
   end
@@ -168,7 +171,51 @@ class ClassroomsController < ApplicationController
   end
 
   def prepare_classroom_form
+    @classroom_creation_structure_allowed = true
     load_school_options if current_user.admin?
+  end
+
+  def prepare_classroom_creation_context
+    @classroom_creation_structure_allowed = true
+    @classroom_creation_context_explicit = params[:school_id].present? || params[:school_year_id].present?
+    @classroom_creation_school = selected_classroom_creation_school
+    @classroom_creation_school_year = selected_classroom_creation_school_year
+  end
+
+  def selected_classroom_creation_school
+    if current_user.admin?
+      return nil unless @classroom_creation_context_explicit
+      raise ActiveRecord::RecordNotFound if params[:school_id].blank?
+
+      return policy_scope(School).active.find(positive_classroom_context_id!(:school_id))
+    end
+
+    school = current_user.annual_school
+    if params[:school_id].present? && positive_classroom_context_id!(:school_id) != school.id
+      raise ActiveRecord::RecordNotFound
+    end
+
+    school
+  end
+
+  def selected_classroom_creation_school_year
+    return nil unless @classroom_creation_school
+
+    allowed_years = allowed_classroom_creation_years(@classroom_creation_school)
+    if params[:school_year_id].present?
+      return allowed_years.find(positive_classroom_context_id!(:school_year_id))
+    end
+
+    allowed_years.find_by!(status: :active)
+  end
+
+  def allowed_classroom_creation_years(school)
+    return school.school_years.where(status: %i[active planning]) if current_user.admin?
+
+    years = [current_user.school_year]
+    planning_year = school.planning_school_year
+    years << planning_year if planning_year&.year == current_user.school_year.year + 1
+    SchoolYear.where(id: years.map(&:id))
   end
 
   def current_user_school_manager?
@@ -187,6 +234,8 @@ class ClassroomsController < ApplicationController
     @selected_school_year = selected_classroom_context_year
     @classroom_context_read_only = @selected_school_year.present? &&
                                    (!@selected_school_year.active? || @selected_school.inactive?)
+    @classroom_context_creatable = classroom_context_creatable?
+    @new_classroom_path = new_classroom_path(classroom_context_params)
   end
 
   def classroom_context_schools
@@ -240,6 +289,23 @@ class ClassroomsController < ApplicationController
              .merge(School.active)
   end
 
+  def classroom_context_creatable?
+    return true if current_user.admin? && @selected_school_year.nil?
+    return false unless @selected_school_year&.school&.active?
+    return false unless @selected_school_year.active? || @selected_school_year.planning?
+
+    current_user.admin? || current_user_school_manager?
+  end
+
+  def classroom_context_params
+    return {} unless @selected_school_year
+
+    {
+      school_id: @selected_school_year.school_id,
+      school_year_id: @selected_school_year.id
+    }
+  end
+
   def reject_ordinary_teacher_context_params!
     return if params[:school_id].blank? && params[:school_year_id].blank?
 
@@ -261,15 +327,26 @@ class ClassroomsController < ApplicationController
   end
 
   def assign_classroom_school_year
-    if current_user.admin?
+    if @classroom_creation_school_year
+      @classroom.school_year = @classroom_creation_school_year
+    elsif current_user.admin?
       school_id = params.dig(:classroom, :school_id)
       return if school_id.blank?
 
       school = policy_scope(School).active.find_by(id: school_id)
       @classroom.school_year = school&.active_school_year
-    elsif current_user_school_manager?
-      @classroom.school_year = current_user.school_year
     end
+  end
+
+  def classroom_creation_success_path
+    if @classroom_creation_context_explicit && @classroom_creation_school_year&.planning?
+      return classrooms_path(
+        school_id: @classroom_creation_school_year.school_id,
+        school_year_id: @classroom_creation_school_year.id
+      )
+    end
+
+    classroom_path(@classroom)
   end
 
   def classrooms_index_title_key

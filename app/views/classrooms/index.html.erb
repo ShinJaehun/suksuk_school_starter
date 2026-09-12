@@ -76,9 +76,9 @@
       <% end %>
     </div>
 
-    <% if !@classroom_context_read_only && policy(Classroom).create? %>
+    <% if @classroom_context_creatable %>
       <%= link_to t('ui.buttons.new_classroom'),
-            new_classroom_path,
+            @new_classroom_path,
             class: "inline-flex w-full justify-center items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 sm:w-auto" %>
     <% end %>
   </div>

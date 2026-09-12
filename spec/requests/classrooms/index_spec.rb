@@ -98,7 +98,19 @@ RSpec.describe 'Classrooms index entry', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include(classroom.class_label)
       expect(response.body).to include(I18n.t('classrooms.index.context_read_only'))
-      expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
+      if school_year.planning?
+        document = Nokogiri::HTML(response.body)
+        expect(
+          document.at_css(
+            %(a[href="#{new_classroom_path(
+              school_id: school.id,
+              school_year_id: planning_year.id
+            )}"])
+          )
+        ).to be_present
+      else
+        expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
+      end
       expect(response.body).not_to include(classroom_path(classroom))
       expect(response.body).not_to include(edit_classroom_path(classroom))
       expect(response.body).not_to include(classroom_members_path(classroom))
@@ -128,8 +140,15 @@ RSpec.describe 'Classrooms index entry', type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).to include(planning_classroom.class_label)
     expect(response.body).to include(I18n.t('classrooms.index.context_read_only'))
-    expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
-
+    document = Nokogiri::HTML(response.body)
+    expect(
+      document.at_css(
+        %(a[href="#{new_classroom_path(
+          school_id: school.id,
+          school_year_id: planning_year.id
+        )}"])
+      )
+    ).to be_present
     get classrooms_path, params: { school_year_id: archived_year.id }
     expect(response).to have_http_status(:not_found)
 

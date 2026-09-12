@@ -431,6 +431,151 @@ RSpec.describe 'Classroom organization settings', type: :request do
     expect(classroom.teacher).to be_nil
   end
 
+  it 'lets an admin create a classroom in an explicitly selected planning context' do
+    planning_year = create(:school_year, school: school, year: school_year.year + 1)
+    sign_in admin
+
+    get new_classroom_path, params: { school_id: school.id, school_year_id: planning_year.id }
+
+    document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:ok)
+    expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
+    expect(document.at_css(%(input[name="school_year_id"][value="#{planning_year.id}"]))).to be_present
+
+    post classrooms_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      classroom: { class_label: '준비 학급', grade: 3 }
+    }
+
+    classroom = planning_year.classrooms.find_by!(class_label: '준비 학급')
+    expect(classroom.grade).to eq(3)
+    expect(classroom.teacher).to be_nil
+    expect(response).to redirect_to(
+      classrooms_path(school_id: school.id, school_year_id: planning_year.id)
+    )
+  end
+
+  it 'lets a current manager create in their immediately following planning context' do
+    manager = create_annual_manager(school: school)
+    planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
+    sign_in manager
+
+    post classrooms_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      classroom: { class_label: '관리자 준비 학급', grade: 4 }
+    }
+
+    classroom = planning_year.classrooms.find_by!(class_label: '관리자 준비 학급')
+    expect(classroom.grade).to eq(4)
+    expect(response).to redirect_to(
+      classrooms_path(school_id: school.id, school_year_id: planning_year.id)
+    )
+  end
+
+  it 'preserves an explicitly selected planning context after validation failure' do
+    planning_year = create(:school_year, school: school, year: school_year.year + 1)
+    sign_in admin
+
+    post classrooms_path, params: {
+      school_id: school.id,
+      school_year_id: planning_year.id,
+      classroom: { class_label: '', grade: 3 }
+    }
+
+    document = Nokogiri::HTML(response.body)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
+    expect(document.at_css(%(input[name="school_year_id"][value="#{planning_year.id}"]))).to be_present
+  end
+
+  it 'fails closed for an archived classroom creation context' do
+    archived_year = create(:school_year, :archived, school: school, year: school_year.year - 1)
+    sign_in admin
+
+    expect do
+      post classrooms_path, params: {
+        school_id: school.id,
+        school_year_id: archived_year.id,
+        classroom: { class_label: '생성 금지 학급', grade: 2 }
+      }
+    end.not_to change(Classroom, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed for a cross-school planning classroom creation context' do
+    other_school = create(:school)
+    other_active_year = create(
+      :school_year,
+      :active,
+      school: other_school,
+      year: school_year.year
+    )
+    other_planning_year = create(
+      :school_year,
+      school: other_school,
+      year: other_active_year.year + 1
+    )
+    sign_in admin
+
+    expect do
+      post classrooms_path, params: {
+        school_id: school.id,
+        school_year_id: other_planning_year.id,
+        classroom: { class_label: '생성 금지 학급', grade: 2 }
+      }
+    end.not_to change(Classroom, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed for a malformed classroom creation School context' do
+    sign_in admin
+
+    expect do
+      post classrooms_path, params: {
+        school_id: 'invalid',
+        school_year_id: school_year.id,
+        classroom: { class_label: '생성 금지 학급', grade: 2 }
+      }
+    end.not_to change(Classroom, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'fails closed when an admin supplies a classroom creation SchoolYear without a School' do
+    sign_in admin
+
+    expect do
+      post classrooms_path, params: {
+        school_year_id: school_year.id,
+        classroom: { class_label: '생성 금지 학급', grade: 2 }
+      }
+    end.not_to change(Classroom, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'does not let a manager create in another school planning context' do
+    manager = create_annual_manager(school: school)
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school)
+    other_planning_year = create(:school_year, school: other_school, year: other_active_year.year + 1)
+    sign_in manager
+
+    expect do
+      post classrooms_path, params: {
+        school_id: other_school.id,
+        school_year_id: other_planning_year.id,
+        classroom: { class_label: '권한 밖 학급', grade: 2 }
+      }
+    end.not_to change(Classroom, :count)
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it 'rejects manager classroom creation without a grade' do
     manager = create_annual_manager(school: school)
     sign_in manager
