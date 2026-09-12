@@ -202,9 +202,7 @@ class ClassroomsController < ApplicationController
     return nil unless @classroom_creation_school
 
     allowed_years = allowed_classroom_creation_years(@classroom_creation_school)
-    if params[:school_year_id].present?
-      return allowed_years.find(positive_classroom_context_id!(:school_year_id))
-    end
+    return allowed_years.find(positive_classroom_context_id!(:school_year_id)) if params[:school_year_id].present?
 
     allowed_years.find_by!(status: :active)
   end

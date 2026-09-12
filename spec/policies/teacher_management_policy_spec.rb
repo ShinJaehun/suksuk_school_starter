@@ -61,6 +61,20 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class::Scope.new(manager, User).resolve).to contain_exactly(manager, member)
   end
 
+  it 'allows planning Teacher settings only in an authorized next-year context' do
+    admin = create(:user, :admin)
+    planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
+    planning_member = create(:user, :teacher, school_year: planning_year,
+      school_role: 'member', login_id: 'planning-member')
+    planning_manager = create(:user, :teacher, school_year: planning_year,
+      school_role: 'manager', login_id: 'planning-manager')
+
+    expect(described_class.new(admin, planning_member).update_profile?).to eq(true)
+    expect(described_class.new(manager, planning_member).update_profile?).to eq(true)
+    expect(described_class.new(manager, planning_manager).update_profile?).to eq(false)
+    expect(described_class.new(member, planning_member).update_profile?).to eq(false)
+  end
+
   it 'authorizes temporary password reissue by role and SchoolYear' do
     admin = create(:user, :admin)
     other_manager = create(:user, :teacher, :active_annual_teacher,

@@ -48,6 +48,7 @@ class TeachersController < ApplicationController
   end
 
   def classroom_options
+    prepare_classroom_options_context
     school = managed_school
     render partial: 'teachers/classroom_options', locals: classroom_option_locals(school)
   end
@@ -57,7 +58,7 @@ class TeachersController < ApplicationController
     @can_reissue_temporary_password = TeacherManagementPolicy.new(
       current_user,
       @teacher
-    ).reissue_temporary_password?
+    ).reissue_temporary_password? && !@teacher.school_year.planning?
     prepare_form
   end
 
@@ -77,7 +78,9 @@ class TeachersController < ApplicationController
     end
 
     if result&.success?
-      redirect_to teachers_path, notice: t('admin.teachers.update.success'), status: :see_other
+      redirect_to teacher_update_return_path,
+                  notice: t('admin.teachers.update.success'),
+                  status: :see_other
     else
       prepare_form
       render :edit, status: :unprocessable_content
@@ -124,7 +127,12 @@ class TeachersController < ApplicationController
   end
 
   def set_teacher
-    @teacher = teacher_management_scope.find(params[:id])
+    if params[:school_year_id].present?
+      @teacher_edit_school_year = explicit_teacher_management_year
+      @teacher = @teacher_edit_school_year.users.teacher.active.find(positive_id_param!(:id))
+    else
+      @teacher = teacher_management_scope.find(params[:id])
+    end
   end
 
   def prepare_index
@@ -233,7 +241,16 @@ class TeachersController < ApplicationController
 
   def teacher_context_mutable?
     return true if current_user.admin? && @selected_school_year.nil?
-    return false unless @selected_school_year&.active?
+    return false unless @selected_school_year
+
+    candidate = User.new(
+      role: :teacher,
+      school_year: @selected_school_year,
+      school_role: 'member',
+      active: true
+    )
+    return TeacherManagementPolicy.new(current_user, candidate).update_profile? if @selected_school_year.planning?
+    return false unless @selected_school_year.active?
 
     current_user.admin? || current_user.current_operational_manager?
   end
@@ -270,12 +287,21 @@ class TeachersController < ApplicationController
     @classroom_candidates = @locked_classroom ? Classroom.none : classroom_candidates(managed_school)
     @selected_classroom_id = selected_classroom_id_for_form
     @planning_teacher_creation = @teacher.new_record? && @teacher_creation_school_year&.planning?
+    @teacher_form_school_year = @teacher_creation_school_year || @teacher_edit_school_year
+    @teacher_form_path = if @teacher.persisted?
+                           teacher_path(@teacher, teacher_form_context_params)
+                         else
+                           teachers_path
+                         end
+    @teacher_classroom_options_path = classroom_options_teachers_path(
+      teacher_form_context_params.merge(teacher_id: @teacher.id)
+    )
   end
 
   def classroom_candidates(school)
     return Classroom.none unless school && selected_membership_grade
 
-    classrooms = school.active_school_year&.classrooms&.active || Classroom.none
+    classrooms = teacher_assignment_school_year(school)&.classrooms&.active || Classroom.none
     occupied_classroom_ids = HomeroomAssignment.current
                                                .where.not(teacher_id: @teacher&.id)
                                                .select(:classroom_id)
@@ -364,9 +390,15 @@ class TeachersController < ApplicationController
     return nil if raw_id.blank?
 
     classroom = if raw_id.match?(/\A[1-9]\d*\z/) && school && membership_grade
-                  school.active_school_year&.classrooms&.find_by(id: raw_id, grade: membership_grade)
+                  teacher_assignment_school_year(school)&.classrooms&.find_by(
+                    id: raw_id,
+                    grade: membership_grade
+                  )
                 end
-    classroom = nil if classroom&.inactive? && classroom != @teacher.assigned_classroom
+    if classroom&.inactive? &&
+       (teacher_assignment_school_year(school)&.planning? || classroom != @teacher.assigned_classroom)
+      classroom = nil
+    end
     if classroom.nil? || (classroom.teacher && classroom.teacher != @teacher)
       @assignment_invalid = true
       @teacher.errors.add(:base, t('admin.teachers.errors.classroom_not_found'))
@@ -396,7 +428,63 @@ class TeachersController < ApplicationController
       membership_grade: membership_grade,
       classroom_id: classroom_id,
       actor: current_user,
-      school_year: @teacher.new_record? ? @teacher_creation_school_year : nil
+      school_year: teacher_save_school_year
+    )
+  end
+
+  def prepare_classroom_options_context
+    return unless params[:school_year_id].present?
+
+    @teacher_edit_school_year = explicit_teacher_management_year
+    return if params[:teacher_id].blank?
+
+    @teacher = @teacher_edit_school_year.users.teacher.active.find(
+      positive_id_param!(:teacher_id)
+    )
+    authorize @teacher, :update_profile?, policy_class: TeacherManagementPolicy
+  end
+
+  def explicit_teacher_management_year
+    raise ActiveRecord::RecordNotFound if current_user.admin? && params[:school_id].blank?
+
+    school = selected_teacher_context_school
+    raise ActiveRecord::RecordNotFound unless school&.active?
+
+    allowed_teacher_context_years(school)
+      .where(status: %i[active planning])
+      .find(positive_id_param!(:school_year_id))
+  end
+
+  def teacher_assignment_school_year(school)
+    school_year = @teacher_edit_school_year || @teacher_creation_school_year
+    return school_year if school_year&.school == school
+    return @teacher.school_year if @teacher&.persisted? && @teacher.annual_school == school
+
+    school&.active_school_year
+  end
+
+  def teacher_save_school_year
+    return @teacher_creation_school_year if @teacher.new_record?
+    return @teacher.school_year if @teacher.school_year&.planning?
+
+    nil
+  end
+
+  def teacher_form_context_params
+    return {} unless @teacher_form_school_year
+
+    {
+      school_id: @teacher_form_school_year.school_id,
+      school_year_id: @teacher_form_school_year.id
+    }
+  end
+
+  def teacher_update_return_path
+    return teachers_path unless @teacher.school_year&.planning?
+
+    teachers_path(
+      school_id: @teacher.school_year.school_id,
+      school_year_id: @teacher.school_year.id
     )
   end
 
@@ -453,7 +541,8 @@ class TeachersController < ApplicationController
       membership_grade: teacher.grade,
       role: teacher.school_role,
       classroom: teacher.assigned_classroom,
-      manageable: @teacher_context_mutable && TeacherManagementPolicy.new(current_user, teacher).update_profile?
+      manageable: @teacher_context_mutable && TeacherManagementPolicy.new(current_user, teacher).update_profile?,
+      edit_path: edit_teacher_path(teacher, teacher_context_params)
     }
   end
 end

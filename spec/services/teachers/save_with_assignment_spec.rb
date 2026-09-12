@@ -141,6 +141,77 @@ RSpec.describe Teachers::SaveWithAssignment do
     expect(teacher.homeroom_assignments.count).to eq(2)
   end
 
+  it "assigns, replaces, and removes a planning classroom without history" do
+    school = create(:school)
+    active_year = create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    teacher = create(:user, :teacher, school_year: planning_year,
+      login_id: "planning-assignment", school_role: "member", grade: 5)
+    first = create(:classroom, school_year: planning_year, grade: 5)
+    second = create(:classroom, school_year: planning_year, grade: 5)
+
+    save_planning = lambda do |classroom|
+      described_class.call(
+        teacher: teacher,
+        attributes: {},
+        school: school,
+        school_year: planning_year,
+        membership_grade: 5,
+        classroom_id: classroom&.id,
+        actor: actor
+      )
+    end
+
+    expect(save_planning.call(first)).to be_success
+    first_assignment = first.current_homeroom_assignment
+    expect(first_assignment.started_on).to eq(Date.new(2027, 3, 1))
+
+    expect(save_planning.call(second)).to be_success
+    expect(HomeroomAssignment.exists?(first_assignment.id)).to eq(false)
+    second_assignment = second.reload.current_homeroom_assignment
+    expect(second_assignment).to have_attributes(
+      teacher: teacher,
+      started_on: Date.new(2027, 3, 1),
+      ended_on: nil
+    )
+
+    expect(save_planning.call(nil)).to be_success
+    expect(HomeroomAssignment.exists?(second_assignment.id)).to eq(false)
+    expect(teacher.reload.assigned_classroom).to be_nil
+  end
+
+  it "rejects invalid planning classroom candidates" do
+    school = create(:school)
+    active_year = create(:school_year, :active, school: school, year: 2026)
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    teacher = create(:user, :teacher, school_year: planning_year,
+      login_id: "planning-candidate", school_role: "member", grade: 5)
+    occupied_teacher = create(:user, :teacher, school_year: planning_year,
+      login_id: "planning-occupied", school_role: "member", grade: 5)
+    invalid_classrooms = [
+      create(:classroom, school_year: active_year, grade: 5),
+      create(:classroom, school_year: planning_year, grade: 4),
+      create(:classroom, school_year: planning_year, grade: 5, active: false),
+      create(:classroom, school_year: planning_year, grade: 5, teacher: occupied_teacher)
+    ]
+
+    invalid_classrooms.each do |classroom|
+      result = described_class.call(
+        teacher: teacher,
+        attributes: {},
+        school: school,
+        school_year: planning_year,
+        membership_grade: 5,
+        classroom_id: classroom.id,
+        actor: actor
+      )
+
+      expect(result).not_to be_success
+      expect(teacher.reload.assigned_classroom).to be_nil
+      teacher.errors.clear
+    end
+  end
+
   it "is idempotent when the selected classroom is unchanged" do
     school = create(:school)
     teacher = annual_teacher(school: school, grade: 5)

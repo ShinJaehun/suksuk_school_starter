@@ -87,7 +87,7 @@
             </div>
           </div>
           <% if row[:manageable] %>
-            <%= link_to t("admin.teachers.index.manage"), edit_teacher_path(teacher), class: "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold" %>
+            <%= link_to t("admin.teachers.index.manage"), row[:edit_path], class: "rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold" %>
           <% end %>
         </article>
       <% end %>

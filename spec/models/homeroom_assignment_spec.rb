@@ -90,6 +90,23 @@ RSpec.describe HomeroomAssignment, type: :model do
     expect(build(:homeroom_assignment, classroom: classroom, teacher: teacher)).to be_valid
   end
 
+  it 'requires a present matching Teacher grade in a planning SchoolYear' do
+    school = create(:school)
+    school_year = create(:school_year, :planning, school: school)
+    classroom = create(:classroom, school_year: school_year, grade: 4)
+    teachers = [
+      create(:user, :teacher, school_year: school_year,
+        login_id: 'planning-ungraded', school_role: 'member', grade: nil),
+      create(:user, :teacher, school_year: school_year,
+        login_id: 'planning-wrong-grade', school_role: 'member', grade: 5)
+    ]
+
+    assignments = teachers.map do |teacher|
+      build(:homeroom_assignment, classroom: classroom, teacher: teacher)
+    end
+    expect(assignments).to all(be_invalid)
+  end
+
   it 'rejects assignment creation in an archived SchoolYear' do
     classroom = create(:classroom)
     teacher = teacher_for(classroom)

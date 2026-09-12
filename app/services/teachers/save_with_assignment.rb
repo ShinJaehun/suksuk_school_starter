@@ -50,12 +50,12 @@ module Teachers
         raise ActiveRecord::Rollback if teacher.errors.any?
 
         persist_teacher!
-        current_assignment.update!(ended_on: Date.current) if current_assignment && current_classroom != classroom
+        release_current_assignment! if current_assignment && current_classroom != classroom
         if classroom && current_classroom != classroom
           HomeroomAssignment.create!(
             classroom: classroom,
             teacher: teacher,
-            started_on: Date.current
+            started_on: assignment_started_on
           )
         end
       end
@@ -92,7 +92,9 @@ module Teachers
       add_error(:login_id_required) if teacher.login_id.blank?
       add_error(:membership_grade_invalid) if invalid_grade?
       add_error(:classroom_not_found) if invalid_classroom_id?
-      add_error(:classroom_not_found) if target_school_year&.planning? && raw_classroom_id.present?
+      if teacher.new_record? && target_school_year&.planning? && raw_classroom_id.present?
+        add_error(:classroom_not_found)
+      end
       add_inactive_school_error if school&.inactive? && (teacher.new_record? || teacher.annual_school != school || classroom)
       return if teacher.errors.any? || classroom.nil?
 
@@ -170,6 +172,20 @@ module Teachers
       else
         teacher.save!
       end
+    end
+
+    def release_current_assignment!
+      if target_school_year&.planning?
+        current_assignment.destroy!
+      else
+        current_assignment.update!(ended_on: Date.current)
+      end
+    end
+
+    def assignment_started_on
+      return Date.current unless target_school_year&.planning?
+
+      Date.new(target_school_year.year, 3, 1)
     end
 
     def target_school_year

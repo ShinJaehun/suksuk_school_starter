@@ -98,8 +98,9 @@ RSpec.describe 'Classrooms index entry', type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to include(classroom.class_label)
       expect(response.body).to include(I18n.t('classrooms.index.context_read_only'))
+      document = Nokogiri::HTML(response.body)
+
       if school_year.planning?
-        document = Nokogiri::HTML(response.body)
         expect(
           document.at_css(
             %(a[href="#{new_classroom_path(
@@ -111,9 +112,10 @@ RSpec.describe 'Classrooms index entry', type: :request do
       else
         expect(response.body).not_to include(I18n.t('ui.buttons.new_classroom'))
       end
-      expect(response.body).not_to include(classroom_path(classroom))
-      expect(response.body).not_to include(edit_classroom_path(classroom))
-      expect(response.body).not_to include(classroom_members_path(classroom))
+
+      expect(document.at_css(%(a[href="#{classroom_path(classroom)}"]))).to be_nil
+      expect(document.at_css(%(a[href="#{edit_classroom_path(classroom)}"]))).to be_nil
+      expect(document.at_css(%(a[href="#{classroom_members_path(classroom)}"]))).to be_nil
     end
   end
 

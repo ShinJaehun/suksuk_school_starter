@@ -26,7 +26,7 @@
 | Planning manager 지정·교체·해제 및 manager account mutation | 모든 active School | 불가 | 불가 |
 | Classroom 단건 create | 선택한 active School의 active/planning SchoolYear | 자기 active School의 current active와 바로 다음 planning SchoolYear | 불가 |
 | Planning Classroom edit/deactivate/reactivate | 모든 active School | 자기 School | 불가 |
-| Planning HomeroomAssignment 연결·변경·해제 | 모든 active School | 자기 School | 불가 |
+| Planning Teacher의 HomeroomAssignment 단건 연결·변경·해제 | 선택한 active School의 planning SchoolYear | 자기 active School의 바로 다음 planning SchoolYear | 불가 |
 
 여기서 current operational manager는 active User, active SchoolYear, active School과 annual manager role을 모두 만족하는 actor다. Planning 또는 archived annual account에 manager role이 있어도 preparation authority를 얻지 않는다.
 
@@ -47,7 +47,7 @@ School overview의 `다음 학년도 준비` 영역은 다음 상태를 제공�
 
 분모와 개수는 해당 School의 유일한 planning SchoolYear에 속한 활성 row만 사용한다. 현재 담임 연결 수는 활성 teacher와 활성 Classroom을 잇는 `ended_on IS NULL` assignment만 센다. Planning context가 없거나 유효하지 않으면 active 또는 archived context로 fallback하지 않는다.
 
-준비 카드는 별도 planning dashboard로 연결하지 않는다. `선생님 준비`, `교실 준비`, `담임 연결`은 기존 `/teachers`, `/classrooms`와 그 자연스러운 담임 관리 흐름을 명시적인 planning SchoolYear context로 연다. Planning 전용 `/planning/teachers`, `/admin/teachers`, `/admin/classrooms` CRUD와 lifecycle별 controller/view 복제는 만들지 않는다.
+준비 카드는 별도 planning dashboard로 연결하지 않는다. `선생님 준비`와 `담임 연결`은 기존 `/teachers`, `교실 준비`는 기존 `/classrooms`를 명시적인 planning SchoolYear context로 연다. Planning 담임 연결은 active-year UX와 같이 `/teachers` context에서 Teacher 설정으로 진입해 관리하며, planning `/classrooms`는 담임 정보를 표시할 수 있지만 변경 form을 제공하지 않는다. Planning 전용 `/planning/teachers`, `/admin/teachers`, `/admin/classrooms` CRUD와 lifecycle별 controller/view 복제는 만들지 않는다.
 
 기본 `/teachers`, `/classrooms` 진입은 계속 current active SchoolYear다. Planning 또는 archived context는 사용자가 권한 안에서 School과 SchoolYear를 명시적으로 선택한 경우에만 사용한다. URL의 SchoolYear id만 신뢰하지 않고 actor에게 허용된 School의 server-side SchoolYear scope에서 status와 ownership을 함께 확인한다. 선택이 없거나 유효하지 않으면 planning/archived로 추측하거나 fallback하지 않는다.
 
@@ -116,19 +116,28 @@ Planning Classroom 준비의 기본 경로는 별도 planning surface나 bulk �
 
 ## HomeroomAssignment contract
 
-Teacher와 Classroom 준비 뒤 별도의 `담임 연결` 단계에서 planning HomeroomAssignment를 관리한다. Teacher bulk나 Classroom 단건 생성에 담임 입력을 강제하지 않는다.
+Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 planning SchoolYear context에서 Teacher 한 건의 설정 화면으로 진입해 HomeroomAssignment를 연결·변경·해제한다. 별도 planning route/controller/view나 bulk assignment workflow를 만들지 않으며, Teacher bulk나 Classroom 단건 생성에 담임 입력을 강제하지 않는다. Planning `/classrooms`에서는 현재 담임 정보를 표시할 수 있지만 담임 변경 form은 제공하지 않는다.
 
 - Teacher와 Classroom은 모두 같은 resolved planning SchoolYear에 속해야 한다.
 - Teacher와 Classroom은 active이고 target School도 active여야 한다.
-- Teacher grade와 Classroom grade가 일치해야 한다.
+- Teacher grade가 존재하고 Classroom grade와 일치해야 한다. Planning Teacher의 grade는 해당 planning SchoolYear의 예정 담당 학년이다.
 - 동일 teacher와 동일 Classroom은 각각 current assignment를 최대 하나만 가진다.
-- Active 또는 archived year의 id는 planning picker와 mutation scope에 포함하지 않는다.
+- Classroom 후보는 resolved planning SchoolYear에서 active이고 Teacher grade와 같은 Classroom이다. 다른 Teacher의 current assignment에 이미 사용된 Classroom은 후보와 mutation scope에서 제외하되, 현재 이 Teacher에게 연결된 Classroom은 선택 상태 유지를 위해 후보에 포함한다.
+- 담당 학년이 아직 정해지지 않아 grade가 없는 planning Teacher는 HomeroomAssignment를 만들 수 없다. 학년 미정은 cross-grade 연결을 허용하는 사유가 아니라 아직 담임 미배정인 준비 상태다.
+- Planning Teacher 설정은 기존 active Teacher의 `teacher-classroom-picker` UX를 재사용한다. 사용자가 `membership_grade`를 바꾸면 별도 저장 없이 같은 화면에서 해당 grade의 planning Classroom 후보를 즉시 다시 불러오고, Classroom을 선택한 뒤 최종 저장 한 번으로 grade와 HomeroomAssignment를 함께 반영한다. Grade를 먼저 저장하고 edit 화면에 다시 진입하게 요구하지 않는다.
+- Classroom 후보 조회 request도 기존 explicit School/SchoolYear와 Teacher context를 보존하고 server-side authorization과 ownership/status 검증을 다시 통과해야 한다. 다른 Teacher에게 이미 배정된 Classroom은 UI 후보에서 제외하고 직접 제출도 거부하며 기존 담임을 자동 해제하지 않는다.
+- Global admin은 명시적으로 선택하고 server-side로 승인된 active School의 planning SchoolYear에서 수행할 수 있다.
+- Current operational manager는 자기 active School의 current active SchoolYear 바로 다음 planning SchoolYear에서만 수행할 수 있다.
+- Ordinary teacher와 그 밖의 actor는 planning assignment authority를 얻지 못한다.
+- School, SchoolYear, Classroom과 teacher id는 모두 actor에게 허용된 planning association scope에서 resolve한다. Malformed, cross-School, cross-year, archived 또는 unauthorized 조합은 다른 context나 row로 fallback하지 않고 fail closed한다.
+- Active 또는 archived year의 id는 planning teacher picker와 mutation scope에 포함하지 않는다.
 - Planning assignment의 `started_on`은 calendar current date가 아니라 해당 SchoolYear의 3월 1일이다.
 - Planning assignment는 아직 실제 운영 이력이 아니다. 연결 변경은 기존 planning assignment를 삭제하고 새 assignment를 만드는 작업을 하나의 transaction으로 수행한다.
 - Planning 중 해제는 기존 planning assignment를 삭제하며 `ended_on` history를 만들지 않는다.
 - 이미 같은 연결이면 row를 다시 만들지 않는 idempotent success로 처리할 수 있다.
+- Active-year의 기존 HomeroomAssignment 연결·변경·해제와 `ended_on` history semantics는 변경하지 않는다. Planning 전용 삭제 semantics가 active operation으로 번지지 않게 별도의 operation boundary를 유지한다.
 
-한 요청에 여러 연결을 제출하는 UI를 사용한다면 모든 mapping을 선검증하고 전체를 하나의 transaction으로 처리한다. 한 건씩 저장하는 UI도 동일한 operation을 한 row batch로 호출할 수 있다. 정확한 picker와 layout은 implementation phase에서 현재 UI 패턴에 맞춘다.
+Planning assignment operation은 한 요청에서 하나의 Teacher를 대상으로 한다. 여러 Teacher의 연결을 한 번에 제출하는 bulk assignment는 현재 canonical workflow가 아니며 필요성이 확인되면 별도 specification과 승인을 거친다. 정확한 Classroom picker와 layout은 기존 Teacher 설정 surface와 현재 UI 패턴에 맞춘다.
 
 ## Planning data edit/remove semantics
 
@@ -159,13 +168,13 @@ Planning은 수정 가능한 준비 context지만 archived data처럼 보존이 
 
 ## Transaction, locking과 atomicity
 
-각 teacher batch, Classroom 단건 생성, assignment batch, teacher lifecycle/credential operation과 manager designation은 독립된 transaction boundary다.
+각 teacher batch, Classroom 단건 생성, planning assignment 단건 operation, teacher lifecycle/credential operation과 manager designation은 독립된 transaction boundary다.
 
 - Request 시작 시 actor와 explicit School을 authorize하고 planning context를 server-side로 resolve한다.
 - Transaction 안에서 target School과 planning SchoolYear를 deterministic하게 lock한다.
 - Lock 이후 actor가 여전히 global admin인지 또는 그 School의 current operational manager인지, School이 active인지, SchoolYear가 여전히 그 School의 유일한 planning context인지 재검증한다.
 - 관련 persisted teacher, Classroom, current HomeroomAssignment와 manager row는 id 순서 등 deterministic order로 필요한 범위만 lock한다.
-- Batch operation은 전체를 선검증한 뒤 저장하며 한 row라도 실패하면 전체 rollback한다.
+- Batch operation은 전체를 선검증한 뒤 저장하며 한 row라도 실패하면 전체 rollback한다. Planning assignment 단건 변경도 기존 row 삭제와 새 row 생성을 하나의 transaction으로 처리한다.
 - DB unique constraint 위반은 성공이나 implicit update로 간주하지 않고 해당 operation의 실패로 처리한다.
 - 실패한 operation은 teacher, Classroom, credential event 또는 planning assignment 변경을 일부라도 남기지 않는다.
 
@@ -199,7 +208,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 6. 성공한 temporary passwords만 no-store 결과에서 한 번 표시되고 평문은 저장·재표시되지 않는다.
 7. Classroom 준비는 기존 `/classrooms/new`와 `POST /classrooms`에서 단건 생성하며, 선택·승인된 active 또는 planning SchoolYear에만 새 row를 만들고 기존 normalization, validation, unique DB index와 inactive-School 실패 계약을 유지한다.
 8. Classroom create context의 malformed, cross-School, unauthorized 또는 archived 입력은 fail closed하며 validation 실패 시 선택 context를 유지하고 planning 성공 후 해당 `/classrooms` context로 복귀한다.
-9. HomeroomAssignment는 같은 planning SchoolYear, 같은 grade, active participants와 current uniqueness를 요구하고 cross-year 연결을 거부한다. `started_on`은 해당 SchoolYear의 3월 1일이며 planning 중 변경·해제는 기존 row를 삭제해 ended history를 만들지 않는다.
+9. Planning HomeroomAssignment는 기존 `/teachers` context의 Teacher 설정 화면에서 Teacher 한 건씩 관리한다. 기존 `teacher-classroom-picker`를 재사용하여 grade 변경 즉시 같은 화면에서 planning Classroom 후보를 갱신하고, 최종 저장 한 번으로 grade와 assignment를 함께 반영한다. Picker request는 planning SchoolYear와 Teacher context를 보존하고 server-side scope를 다시 검증한다. Classroom 후보는 같은 planning SchoolYear의 active Classroom이며 Teacher grade와 일치해야 한다. 다른 Teacher의 current assignment에 사용된 Classroom은 제외하고 현재 이 Teacher에게 연결된 Classroom은 유지 후보에 포함한다. Grade가 없거나 Classroom과 grade가 다른 Teacher는 연결할 수 없다. Global admin은 선택한 planning context, current manager는 자기 School의 바로 다음 planning context에서만 수행하고 malformed, cross-School, cross-year, inactive participant, grade mismatch, 이미 다른 Teacher에게 배정된 Classroom, archived와 unauthorized 조합은 fail closed한다. `started_on`은 해당 SchoolYear의 3월 1일이며 planning 중 변경·해제는 기존 row를 삭제해 `ended_on` history를 만들지 않는다. Active-year의 기존 assignment lifecycle과 history semantics는 유지하고 planning `/classrooms`에는 담임 변경 form을 제공하지 않는다.
 10. Planning teacher/Classroom 생성과 담임 연결은 단계적으로 분리되며 Classroom 단건 생성은 Student나 담임을 함께 생성·연결하지 않는다. School overview는 활성 teacher 수, 활성 Classroom 수, 담임 연결 현황과 manager 준비 상태 및 entry를 제공한다.
 11. Planning teacher의 준비 제외는 assignment 삭제 후 deactivation, 재포함은 새 temporary credential 발급과 함께 원자적으로 수행하며 account/credential audit를 보존한다.
 12. Planning Classroom의 준비 제외는 assignment 삭제 후 deactivation이며 재포함은 같은 row를 활성화하고 restrict-with-error 관계를 우회하지 않는다.
@@ -219,6 +228,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - Manager용 `/admin/*` 개방
 - Generic batch/workflow/state-machine/context framework
 - Planning Classroom bulk 전용 workflow. 향후 필요하면 단건 생성 계약을 보존하는 optional enhancement로 별도 specification한다.
+- Planning HomeroomAssignment bulk 연결 workflow. 향후 필요하면 Teacher 단건 operation 계약과 active-year history 경계를 보존하는 별도 enhancement로 specification한다.
 - Permanent Teacher identity 또는 연도별 User 자동 연결
 - Rollover readiness 실행, rollover, reversal/recovery와 UI
 - Archived read-only UI, archived login과 historical reporting
@@ -233,7 +243,7 @@ Phase B는 다음의 작은 implementation 단위로 나눈다.
 4. B4 — 후임 manager 후보 제안과 global-admin-only 최종 designation
 5. B5a — 기존 `/classrooms/new`와 `POST /classrooms`의 explicit active/planning context 단건 create
 6. B5b — 같은 classroom surface의 planning edit/deactivate/reactivate
-7. B6 — 같은 SchoolYear context 안의 planning HomeroomAssignment 연결·변경·해제
+7. B6 — 기존 Teacher 설정 surface에서 같은 planning SchoolYear의 HomeroomAssignment 단건 연결·변경·해제
 
 각 단위는 focused spec과 human verification을 거친다. 기본 query에 planning을 섞지 않고 explicit SchoolYear context를 별도로 resolve하며 lifecycle별 controller/view를 복제하지 않는다. B1에서 generic dashboard를 만들지 않는다.
 

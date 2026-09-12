@@ -54,6 +54,18 @@ class TeacherManagementPolicy < ApplicationPolicy
 
   def update_profile?
     return false unless record.teacher?
+
+    school_year = record.school_year
+    if school_year&.planning?
+      return false unless record.active? && school_year.school.active?
+      return true if user&.admin?
+
+      return school_manager? &&
+        record.school_member? &&
+        school_year.school == user.annual_school &&
+        school_year.year == user.school_year.year + 1
+    end
+
     return true if user&.admin?
 
     school_manager? && record.school_year_id == user.school_year_id

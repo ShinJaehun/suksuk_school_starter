@@ -2,12 +2,12 @@
 <% avatar_image_sources = teacher_avatar_keys.index_with { |avatar_key| asset_path("avatars/#{avatar_key}.png") } %>
 
 <%= form_with model: @teacher,
-      url: @teacher.persisted? ? teacher_path(@teacher) : teachers_path,
+      url: @teacher_form_path,
       class: "space-y-6",
       data: {
         turbo: (@teacher.persisted? ? nil : false),
         controller: "teacher-avatar-preview teacher-classroom-picker",
-        teacher_classroom_picker_url_value: classroom_options_teachers_path,
+        teacher_classroom_picker_url_value: @teacher_classroom_options_path,
         teacher_classroom_picker_selected_id_value: @selected_classroom_id,
         teacher_avatar_preview_male_keys_value: User::TEACHER_MALE_AVATAR_KEYS,
         teacher_avatar_preview_female_keys_value: User::TEACHER_FEMALE_AVATAR_KEYS,
@@ -24,19 +24,19 @@
            data-teacher-form-section="assignments">
     <h2 class="text-lg font-bold text-slate-900"><%= t("admin.teachers.school_assignment_title") %></h2>
 
-    <% if @teacher_creation_school_year %>
+    <% if @teacher_form_school_year %>
       <p class="text-sm font-semibold text-slate-700">
         <%= t(
               "admin.teachers.form.school_year_context",
-              school: @teacher_creation_school_year.school.name,
-              year: @teacher_creation_school_year.year
+              school: @teacher_form_school_year.school.name,
+              year: @teacher_form_school_year.year
             ) %>
       </p>
-      <%= hidden_field_tag :school_id, @teacher_creation_school_year.school_id %>
-      <%= hidden_field_tag :school_year_id, @teacher_creation_school_year.id %>
+      <%= hidden_field_tag :school_id, @teacher_form_school_year.school_id %>
+      <%= hidden_field_tag :school_year_id, @teacher_form_school_year.id %>
       <% unless @planning_teacher_creation %>
         <%= tag.input type: "hidden",
-              value: @teacher_creation_school_year.school_id,
+              value: @teacher_form_school_year.school_id,
               data: { teacher_classroom_picker_target: "school" } %>
       <% end %>
     <% elsif @locked_classroom %>

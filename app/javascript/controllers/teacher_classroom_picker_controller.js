@@ -16,16 +16,24 @@ export default class extends Controller {
   }
 
   async loadOptions() {
-    const params = new URLSearchParams()
-    if (this.schoolTarget.value !== "") params.set("school_id", this.schoolTarget.value)
-    if (this.gradeTarget.value !== "") params.set("membership_grade", this.gradeTarget.value)
-    if (this.selectedIdValue > 0) params.set("classroom_id", this.selectedIdValue)
+    const url = new URL(this.urlValue, window.location.origin)
+    this.updateSearchParam(url, "school_id", this.schoolTarget.value)
+    this.updateSearchParam(url, "membership_grade", this.gradeTarget.value)
+    this.updateSearchParam(url, "classroom_id", this.selectedIdValue > 0 ? this.selectedIdValue : "")
 
-    const response = await fetch(`${this.urlValue}?${params.toString()}`, {
+    const response = await fetch(url.toString(), {
       headers: { Accept: "text/html" }
     })
     if (!response.ok) return
 
     this.optionsTarget.innerHTML = await response.text()
+  }
+
+  updateSearchParam(url, key, value) {
+    if (value === "") {
+      url.searchParams.delete(key)
+    } else {
+      url.searchParams.set(key, value)
+    }
   }
 }
