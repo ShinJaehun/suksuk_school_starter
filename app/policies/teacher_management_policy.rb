@@ -81,6 +81,20 @@ class TeacherManagementPolicy < ApplicationPolicy
       record.school_year_id == user.school_year_id
   end
 
+  def destroy?
+    return false unless record.teacher?
+
+    school_year = record.school_year
+    return false unless school_year&.planning? && school_year.school.active?
+    return true if user&.admin?
+    return false unless record.school_member?
+
+    school_manager? &&
+      school_year.school == user.annual_school &&
+      school_year == school_year.school.planning_school_year &&
+      school_year.year == user.school_year.year + 1
+  end
+
   private
 
   def school_manager?

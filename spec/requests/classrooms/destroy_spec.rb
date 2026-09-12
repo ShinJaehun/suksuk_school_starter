@@ -3,6 +3,19 @@ require 'rails_helper'
 RSpec.describe 'Classroom deletion', type: :request do
   let(:school) { create(:school) }
 
+  it 'keeps the existing admin deletion behavior for an empty active Classroom' do
+    admin = create(:user, :admin)
+    classroom = create(:classroom, annual_school: school)
+    sign_in admin
+
+    expect do
+      delete classroom_path(classroom)
+    end.to change(Classroom, :count).by(-1)
+
+    expect(response).to redirect_to(classrooms_path)
+    expect(response).to have_http_status(:see_other)
+  end
+
   it 'rejects deleting a classroom with homeroom history' do
     admin = create(:user, :admin)
     teacher = create(:user, :teacher, :active_annual_teacher, annual_school: school)

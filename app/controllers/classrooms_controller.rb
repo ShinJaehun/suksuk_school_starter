@@ -2,9 +2,8 @@
 
 class ClassroomsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_classroom, only: %i[
-    show destroy
-  ]
+  before_action :set_classroom, only: :show
+  before_action :set_destroy_classroom, only: :destroy
   before_action :set_lifecycle_classroom, only: %i[deactivate reactivate]
 
   def index
@@ -100,6 +99,13 @@ class ClassroomsController < ApplicationController
   def destroy
     authorize @classroom
 
+    if @classroom.school_year.planning?
+      PlanningClassrooms::Destroy.call(classroom: @classroom)
+      return redirect_to classrooms_path(classroom_destroy_context_params),
+                         notice: t('classrooms.destroy.planning_success'),
+                         status: :see_other
+    end
+
     if @classroom.destroy
       redirect_to classrooms_path,
                   notice: t('classrooms.destroy.success'),
@@ -110,7 +116,7 @@ class ClassroomsController < ApplicationController
                   status: :see_other
     end
   rescue ActiveRecord::InvalidForeignKey, ActiveRecord::RecordNotDestroyed
-    redirect_to edit_classroom_path(@classroom),
+    redirect_to edit_classroom_path(@classroom, classroom_destroy_context_params),
                 alert: t('classrooms.destroy.failure'),
                 status: :see_other
   end
@@ -131,6 +137,24 @@ class ClassroomsController < ApplicationController
     @classroom = Classroom.find(params[:id])
   end
 
+  def set_destroy_classroom
+    unless params[:school_id].present? || params[:school_year_id].present?
+      @classroom = policy_scope(Classroom).find(params[:id])
+      return
+    end
+
+    raise ActiveRecord::RecordNotFound unless params[:school_id].present? && params[:school_year_id].present?
+
+    school = selected_classroom_context_school
+    raise ActiveRecord::RecordNotFound unless school&.active?
+
+    school_year = allowed_classroom_context_years(school)
+                  .planning
+                  .find(positive_classroom_context_id!(:school_year_id))
+    @classroom = school_year.classrooms.find(positive_classroom_context_id!(:id))
+    @classroom_destroy_context = { school_id: school.id, school_year_id: school_year.id }
+  end
+
   def set_lifecycle_classroom
     @classroom = policy_scope(Classroom).find(params[:id])
   end
@@ -149,6 +173,10 @@ class ClassroomsController < ApplicationController
 
   def classroom_destroy_error_message
     @classroom.errors.full_messages.to_sentence.presence || t('classrooms.destroy.failure')
+  end
+
+  def classroom_destroy_context_params
+    @classroom_destroy_context || {}
   end
 
   def classroom_params

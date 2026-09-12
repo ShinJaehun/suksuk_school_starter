@@ -53,8 +53,11 @@
 
       <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <%= link_to t('ui.buttons.delete_classroom'),
-              classroom_path(@classroom),
-              data: { turbo_method: :delete, turbo_confirm: t('ui.buttons.confirm_delete_classroom') },
+              classroom_path(@classroom, @classroom_edit_context_params),
+              data: {
+                turbo_method: :delete,
+                turbo_confirm: t(@classroom.school_year.planning? ? 'classrooms.destroy.planning_confirm' : 'ui.buttons.confirm_delete_classroom')
+              },
               class: "inline-flex items-center justify-center rounded-lg border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100" %>
       </div>
     </section>

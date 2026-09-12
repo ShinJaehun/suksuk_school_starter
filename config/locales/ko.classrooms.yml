@@ -62,4 +62,6 @@ ko:
       success: "교실 설정을 저장했습니다."
     destroy:
       success: "교실이 삭제되었습니다."
+      planning_success: "다음 학년도 준비 교실을 삭제했습니다."
+      planning_confirm: "이 교실은 아직 다음 학년도 준비 교실입니다. 삭제하면 준비된 담임 연결도 함께 제거됩니다. 삭제할까요?"
       failure: "교실을 삭제하지 못했습니다."

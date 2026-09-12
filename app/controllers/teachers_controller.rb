@@ -3,7 +3,7 @@ class TeachersController < ApplicationController
   before_action :authorize_teacher_index!, only: :index
   before_action :authorize_teacher_management!, except: :index
   before_action :prepare_teacher_creation_context, only: %i[new create]
-  before_action :set_teacher, only: %i[edit update deactivate reactivate reissue_temporary_password]
+  before_action :set_teacher, only: %i[edit update destroy deactivate reactivate reissue_temporary_password]
 
   def index
     prepare_index
@@ -59,6 +59,7 @@ class TeachersController < ApplicationController
       current_user,
       @teacher
     ).reissue_temporary_password? && !@teacher.school_year.planning?
+    @can_destroy_planning_teacher = TeacherManagementPolicy.new(current_user, @teacher).destroy?
     prepare_form
   end
 
@@ -85,6 +86,20 @@ class TeachersController < ApplicationController
       prepare_form
       render :edit, status: :unprocessable_content
     end
+  end
+
+  def destroy
+    authorize @teacher, :destroy?, policy_class: TeacherManagementPolicy
+    return_path = teacher_update_return_path
+    PlanningTeachers::Destroy.call(teacher: @teacher)
+
+    redirect_to return_path,
+                notice: t('admin.teachers.destroy.success'),
+                status: :see_other
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::InvalidForeignKey
+    redirect_to edit_teacher_path(@teacher, teacher_form_context_params),
+                alert: t('admin.teachers.destroy.failure'),
+                status: :see_other
   end
 
   def deactivate
@@ -471,11 +486,12 @@ class TeachersController < ApplicationController
   end
 
   def teacher_form_context_params
-    return {} unless @teacher_form_school_year
+    school_year = @teacher_form_school_year || @teacher_edit_school_year
+    return {} unless school_year
 
     {
-      school_id: @teacher_form_school_year.school_id,
-      school_year_id: @teacher_form_school_year.id
+      school_id: school_year.school_id,
+      school_year_id: school_year.id
     }
   end
 

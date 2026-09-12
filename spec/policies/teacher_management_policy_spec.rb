@@ -92,6 +92,25 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class.new(manager, outside_teacher).reissue_temporary_password?).to eq(false)
   end
 
+  it 'allows planning Teacher hard delete without widening active or archived deletion' do
+    admin = create(:user, :admin)
+    planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
+    archived_year = create(:school_year, :archived, school: school, year: manager.school_year.year - 1)
+    planning_member = create(:user, :teacher, school_year: planning_year,
+      school_role: 'member', login_id: 'delete-member')
+    planning_manager = create(:user, :teacher, school_year: planning_year,
+      school_role: 'manager', login_id: 'delete-manager')
+    archived_teacher = create(:user, :teacher, school_year: archived_year,
+      school_role: 'member', login_id: 'delete-archived')
+
+    expect(described_class.new(admin, planning_member).destroy?).to eq(true)
+    expect(described_class.new(manager, planning_member).destroy?).to eq(true)
+    expect(described_class.new(admin, planning_manager).destroy?).to eq(true)
+    expect(described_class.new(manager, planning_manager).destroy?).to eq(false)
+    expect(described_class.new(manager, member).destroy?).to eq(false)
+    expect(described_class.new(admin, archived_teacher).destroy?).to eq(false)
+  end
+
   it "limits the admin scope to teachers in each school's active SchoolYear" do
     admin = create(:user, :admin)
     active_teacher = member

@@ -66,7 +66,9 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def destroy?
-    active_school? && !!admin?
+    return !!admin? if active_school?
+
+    planning_structure_allowed?
   end
 
   def manage_members?

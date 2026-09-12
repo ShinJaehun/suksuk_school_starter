@@ -183,6 +183,20 @@ RSpec.describe ClassroomPolicy do
 
   end
 
+  describe '#destroy?' do
+    it 'allows authorized planning deletion without widening active manager deletion' do
+      school = create(:school)
+      active_classroom = create(:classroom, annual_school: school)
+      manager = annual_teacher(school: school, school_role: 'manager')
+      planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
+      planning_classroom = create(:classroom, school_year: planning_year)
+
+      expect(described_class.new(create(:user, :admin), planning_classroom).destroy?).to eq(true)
+      expect(described_class.new(manager, planning_classroom).destroy?).to eq(true)
+      expect(described_class.new(manager, active_classroom).destroy?).to eq(false)
+    end
+  end
+
   describe "settings permissions" do
     let(:school) { create(:school) }
     let(:classroom) { create(:classroom, annual_school: school) }

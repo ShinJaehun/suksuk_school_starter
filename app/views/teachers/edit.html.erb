@@ -18,6 +18,21 @@
             class: "rounded-lg border border-amber-400 bg-white px-4 py-2 font-semibold text-amber-900 hover:bg-amber-100" %>
     </section>
   <% end %>
+  <% if @can_destroy_planning_teacher %>
+    <section class="space-y-3 rounded-xl border border-rose-200 bg-rose-50 p-5">
+      <h2 class="font-bold text-rose-950"><%= t("admin.teachers.destroy.title") %></h2>
+      <p class="text-sm text-rose-900"><%= t("admin.teachers.destroy.description") %></p>
+      <%= button_to t("admin.teachers.destroy.submit"),
+            teacher_path(
+              @teacher,
+              school_id: @teacher_form_school_year.school_id,
+              school_year_id: @teacher_form_school_year.id
+            ),
+            method: :delete,
+            data: { turbo_confirm: t("admin.teachers.destroy.confirm") },
+            class: "rounded-lg border border-rose-300 bg-white px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100" %>
+    </section>
+  <% end %>
   <% if @teacher.active? && policy(@teacher).deactivate_teacher? %>
     <%= button_to t("teacher_status.deactivate"), deactivate_teacher_path(@teacher),
           method: :patch,
