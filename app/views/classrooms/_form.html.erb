@@ -2,6 +2,9 @@
   <% if @classroom_creation_context_explicit && @classroom_creation_school_year %>
     <%= hidden_field_tag :school_id, @classroom_creation_school_year.school_id %>
     <%= hidden_field_tag :school_year_id, @classroom_creation_school_year.id %>
+  <% elsif @classroom_edit_context_params.present? %>
+    <%= hidden_field_tag :school_id, @classroom_edit_context_params[:school_id] %>
+    <%= hidden_field_tag :school_year_id, @classroom_edit_context_params[:school_year_id] %>
   <% end %>
 
   <div class="space-y-6">
@@ -54,14 +57,16 @@
           <% end %>
 
           <div class="space-y-2">
-            <% grade_has_errors = classroom.errors[:grade].any? %>
+            <% grade_has_errors = classroom.errors[:grade].any? || classroom.errors[:teacher].any? %>
             <%= f.label :grade, t("classrooms.form.grade_label"), class: "block text-sm font-semibold text-slate-800" %>
             <%= f.select :grade,
                   (1..6).map { |grade| [t("classrooms.index.grade", grade: grade), grade] },
                   { include_blank: t("classrooms.form.grade_prompt") },
                   class: "block w-full rounded-xl border px-4 py-3 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 #{grade_has_errors ? "border-rose-400 focus:border-rose-500 focus:ring-rose-100" : "border-slate-300 focus:border-sky-500 focus:ring-sky-100"}" %>
             <% if grade_has_errors %>
-              <p class="text-sm text-rose-600"><%= classroom.errors.full_messages_for(:grade).to_sentence %></p>
+              <p class="text-sm text-rose-600">
+                <%= (classroom.errors.full_messages_for(:grade) + classroom.errors[:teacher]).to_sentence %>
+              </p>
             <% end %>
           </div>
         </div>

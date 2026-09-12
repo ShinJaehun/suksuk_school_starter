@@ -630,6 +630,25 @@ RSpec.describe 'Classroom organization settings', type: :request do
     expect(classroom.reload).to have_attributes(school_year: school.school_years.active.first, grade: 6)
   end
 
+  it 'shows the shared grade mismatch guidance without changing an active classroom assignment' do
+    classroom = create(:classroom, annual_school: school, grade: 2)
+    teacher = create(:user, :teacher, :active_annual_teacher,
+                     annual_school: school, annual_grade: classroom.grade)
+    assignment = assign_teacher(classroom, teacher)
+    sign_in admin
+
+    patch classroom_path(classroom), params: {
+      classroom: classroom_update_params(classroom).merge(grade: 6)
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(classroom.reload.grade).to eq(2)
+    expect(assignment.reload).to be_current
+    expect(response.body).to include(
+      '담임 선생님이 지정된 교실의 학년은 변경할 수 없습니다. 먼저 선생님 설정에서 담임 배정을 해제해 주세요.'
+    )
+  end
+
   it 'rejects an admin school change and keeps the full update unchanged' do
     original_school = create(:school)
     target_school = create(:school)

@@ -234,6 +234,7 @@ class ClassroomsController < ApplicationController
                                    (!@selected_school_year.active? || @selected_school.inactive?)
     @classroom_context_creatable = classroom_context_creatable?
     @new_classroom_path = new_classroom_path(classroom_context_params)
+    @classroom_edit_context_params = @selected_school_year&.planning? ? classroom_context_params : {}
   end
 
   def classroom_context_schools

@@ -259,7 +259,7 @@ RSpec.describe ClassroomPolicy do
       expect(described_class::Scope.new(planning_manager, Classroom).resolve).to be_empty
     end
 
-    it "does not widen existing classroom mutation permissions in planning context" do
+    it "allows only planning structure mutation while keeping lifecycle and member operations closed" do
       planning_year = create(:school_year, school: school, year: classroom.school_year.year + 1)
       planning_classroom = create(:classroom, school_year: planning_year)
       admin = create(:user, :admin)
@@ -268,11 +268,21 @@ RSpec.describe ClassroomPolicy do
       [admin, manager].each do |actor|
         policy = described_class.new(actor, planning_classroom)
 
-        expect(policy.manage_structure?).to eq(false)
-        expect(policy.update?).to eq(false)
+        expect(policy.manage_structure?).to eq(true)
+        expect(policy.update?).to eq(true)
+        expect(policy.manage_members?).to eq(false)
+        expect(policy.manage_operations?).to eq(false)
         expect(policy.deactivate?).to eq(false)
         expect(policy.reactivate?).to eq(false)
       end
+    end
+
+    it "rejects planning structure mutation by an ordinary teacher" do
+      planning_year = create(:school_year, school: school, year: classroom.school_year.year + 1)
+      planning_classroom = create(:classroom, school_year: planning_year)
+      teacher = annual_teacher(school: school)
+
+      expect(described_class.new(teacher, planning_classroom).manage_structure?).to eq(false)
     end
   end
 

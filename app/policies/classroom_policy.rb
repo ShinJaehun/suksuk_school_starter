@@ -62,7 +62,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def edit?
-    active_school? && !!(admin? || school_manager_of?(record))
+    manage_structure? || (active_school? && !!(admin? || school_manager_of?(record)))
   end
 
   def destroy?
@@ -74,7 +74,9 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def manage_structure?
-    active_school? && active_classroom? && !!(admin? || school_manager_of?(record))
+    return active_classroom? && !!(admin? || school_manager_of?(record)) if active_school?
+
+    planning_structure_allowed?
   end
 
   def manage_operations?
@@ -122,6 +124,19 @@ class ClassroomPolicy < ApplicationPolicy
 
   def school_manager_of?(classroom)
     school_manager? && classroom.school_year_id == user.school_year_id
+  end
+
+  def planning_structure_allowed?
+    return false unless record.respond_to?(:school_year)
+
+    school_year = record.school_year
+    return false unless school_year&.planning? && school_year.school.active?
+    return true if admin?
+    return false unless school_manager?
+
+    user.annual_school == school_year.school &&
+      school_year == school_year.school.planning_school_year &&
+      school_year.year == user.school_year.year + 1
   end
 
   def teacher_of?(classroom)
