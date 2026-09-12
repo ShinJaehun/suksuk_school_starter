@@ -2,7 +2,7 @@
 
 ## 목적
 
-이 문서는 active SchoolYear를 건드리지 않고 다음 planning SchoolYear의 annual teacher User, Classroom과 HomeroomAssignment를 준비하는 Phase B canonical spec이다.
+이 문서는 다음 planning SchoolYear의 annual teacher User, Classroom과 HomeroomAssignment 준비 및 승인된 B10 actual SchoolYear rollover의 canonical contract를 정의한다. B10 이전의 preparation operation은 active SchoolYear를 변경하지 않는다.
 
 예를 들어 2026 active와 2027 planning이 함께 있을 때 허용된 actor는 2027 준비 data만 명시적으로 생성·수정할 수 있다. Planning은 rollover 전 staging이자 safety boundary다. Teacher/Classroom CRUD를 복제한 generic planning workspace나 독립된 제품 hierarchy는 만들지 않되, SchoolYear 전체 준비 상태와 cross-resource operation을 모으는 얇은 다음 학년도 준비 페이지를 둔다.
 
@@ -14,7 +14,7 @@
 - Teacher User와 Classroom의 `school_year_id`는 생성 후 변경하지 않는다.
 - `/teachers`와 `/classrooms`는 active-year canonical surface로 유지한다.
 - Planning teacher는 credential을 준비할 수 있지만 planning 상태에서는 normal runtime login을 할 수 없다.
-- Planning Student 준비, rollover, reversal, archived authentication과 historical UI는 이 phase 밖이다.
+- Planning Student 준비, rollover reversal/recovery, archived authentication과 historical UI는 이 phase 밖이다.
 
 ## Actor/authority matrix
 
@@ -115,9 +115,80 @@ Teacher 수, Classroom 수, 모든 Classroom의 담임 연결 여부, 모든 Tea
 
 ### Rollover eligibility
 
-현재 확정된 최소 rollover invariant는 planning manager가 정확히 1명인 것이다. Manager가 없으면 preparation page에서 `다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다.`에 해당하는 localized 안내를 표시할 수 있다. 복수 manager는 B7 cardinality 위반이며 eligibility를 충족하지 않는다. Planning manager는 rollover 전에는 operational authority를 얻지 않는다.
+B9가 확정하는 최소 business invariant는 planning SchoolYear의 annual Teacher 중 `school_role: manager`가 정확히 1명인 것이다. Manager 0명은 ineligible, 1명은 eligible, 2명 이상은 정상 DB invariant 위반이면서 ineligible이다. SchoolYear별 manager partial unique index를 최종 방어선으로 유지하되 domain 판정은 항상 `exactly 1`을 사용한다.
 
-실제 rollover eligibility service/UI, 날짜 조건, locking, atomic transition, active year archival, session/credential 처리와 reversal/recovery는 후속 canonical specification에서 정한다. Preparation status를 계산하는 query가 필요하더라도 count와 manager 상태만 반환하며 `ready?` 또는 Teacher/Classroom/Homeroom blocker key를 제공하지 않는다. Authorization과 fail-closed behavior는 preparation page의 기존 resolver와 `SchoolYearPolicy`가 담당한다.
+Teacher/Classroom/Homeroom 준비 현황은 business eligibility에 영향을 주지 않는다. 예를 들어 planning Teacher 1명이 manager이고 Classroom과 HomeroomAssignment가 0개인 상태도 business eligibility를 충족한다. Planning manager 삭제로 manager가 0명이 되면 즉시 ineligible이 되고 global admin이 manager를 지정하면 다시 eligible이 된다.
+
+Eligibility는 현재 data에서 계산하는 derived state다. `ready`, `rollover_ready`, `prepared` column이나 enum으로 저장하지 않는다. 후속 구현에서 작은 `SchoolYears::RolloverEligibility` query를 둘 수 있으며, 정확한 이름은 당시 namespace에 맞춘다. 최소 결과는 `eligible?`, `manager`, `manager_count`이고 필요하면 `inactive_school`, `active_school_year_missing`, `planning_school_year_missing`, `non_consecutive_year`, `manager_missing`, `manager_cardinality_invalid` 같은 stable error key를 반환할 수 있다. Authorization과 한국어 문장은 query에 넣지 않으며 generic readiness framework나 state machine을 만들지 않는다.
+
+Business eligibility를 계산하기 전에 rollover target 자체에 다음 structural safety precondition을 적용한다.
+
+- School이 active다.
+- Current active SchoolYear와 planning SchoolYear가 각각 정확히 하나 존재한다.
+- 두 SchoolYear가 같은 School에 속한다.
+- Planning year는 active year + 1이다.
+- Current SchoolYear status는 active이고 target SchoolYear status는 planning이다.
+
+하나라도 깨지면 fail closed한다. 이는 사용자가 Teacher/Classroom을 더 준비해서 해결하는 checklist나 preparation blocker가 아니라 정상 UI flow에서는 발생하지 않아야 하는 integrity/configuration error다.
+
+Planning manager는 rollover 전 operational authority가 아니다. Rollover가 성공해 planning SchoolYear가 active가 되면 해당 annual Teacher의 기존 `school_role: manager`가 새 active SchoolYear의 운영 authority 근거가 된다. Successor record를 만들거나 role을 다른 annual User에 복사하지 않는다. Planning manager의 `active` boolean을 별도 eligibility checklist로 사용하지 않으며, 인증 불가능한 비정상 row가 발견되면 후속 rollover transaction safety validation에서 fail closed한다.
+
+Preparation page는 기존 정보성 count를 유지하면서 향후 작은 `운영 전환 조건` 영역에서 manager 지정 여부만 eligibility 조건으로 구분할 수 있다. Manager가 없으면 `다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다.`에 해당하는 localized 안내를 표시하고, Teacher/Classroom/Homeroom count를 완료/실패 checklist로 바꾸지 않는다. B9에서는 rollover button을 추가하지 않는다.
+
+B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, 실행 날짜, locking과 transaction ordering, active → archived 및 planning → active transition, session revocation, failure rollback, recovery/idempotency와 audit/logging 필요 여부는 실제 rollover canonical specification에서 별도로 결정한다.
+
+## Actual SchoolYear rollover contract
+
+B10 actual rollover는 B9 business eligibility와 structural safety를 통과한 School의 annual lifecycle을 명시적으로 전환하는 operation이다. 실행 권한은 global admin에게만 있다. Current operational manager는 planning data를 준비할 수 있지만 SchoolYear lifecycle을 전환할 수 없으며 ordinary teacher와 planning Teacher도 실행할 수 없다.
+
+정상 transition은 정확히 다음 두 status 변경이다.
+
+```text
+current active SchoolYear → archived
+target planning SchoolYear → active
+```
+
+Planning manager의 `school_role`을 복사하거나 새 User를 만들지 않는다. Target SchoolYear가 active가 되면 기존 planning manager가 자연스럽게 새 operational manager가 되고, 이전 manager는 자신의 SchoolYear가 archived되므로 operational authority를 잃는다.
+
+### Transaction과 locking
+
+Rollover는 하나의 DB transaction에서 수행한다. School, current active SchoolYear, target planning SchoolYear 순서로 lock하고, lock 이후 B9 structural safety와 manager exactly one business eligibility를 다시 검증한다. 검증을 통과한 뒤 같은 transaction에서 current active를 archived로, target planning을 active로 변경한다. 두 status 변경 중 하나라도 실패하거나 transaction 도중 invariant가 달라지면 전체 rollback하며 부분 전환을 허용하지 않는다.
+
+다음 상태는 fallback이나 성공 처리 없이 fail closed한다.
+
+- School이 inactive다.
+- Current active SchoolYear 또는 target planning SchoolYear가 없거나 정확히 하나가 아니다.
+- Active와 planning SchoolYear가 서로 다른 School에 속한다.
+- Planning year가 active year + 1이 아니다.
+- Current target status가 각각 active/planning이 아니다.
+- Planning manager가 정확히 1명이 아니다.
+- 이미 완료된 rollover의 stale/repeated request다.
+- Lock 이후 transaction 도중 structural 또는 business invariant가 바뀐다.
+
+Repeated request는 이미 완료된 transition을 idempotent success로 가장하지 않는다. 요청이 가리키는 active/planning pair가 더 이상 정상 current state가 아니면 실패한다.
+
+### 날짜와 실행 UX
+
+B10은 calendar/date restriction을 두지 않는다. `Date.current.year`, 특정 월·일 또는 학기 시작일은 eligibility나 실행 조건이 아니며 global admin의 명시적 실행과 B9 invariant만 기준으로 삼는다. 미래 연도 검증을 위한 production time-travel helper나 debug endpoint를 만들지 않는다.
+
+향후 implementation은 global admin의 planning preparation page에 rollover action을 제공하고 실행 전에 명확한 confirmation을 요구한다. Confirmation은 현재 학년도가 archived되고 다음 학년도가 active가 되며 새 학년도 manager가 운영 권한을 얻고 단순 취소/undo 기능은 제공되지 않는다는 의미를 전달한다. 정확한 사용자 문구는 locale implementation 단계에서 정한다.
+
+### Runtime result와 authentication boundary
+
+성공 직후 다음 invariant를 만족한다.
+
+- 이전 active SchoolYear는 archived이고 target planning SchoolYear는 active다.
+- School에는 active SchoolYear가 정확히 하나 있으며 planning SchoolYear는 0개일 수 있다.
+- 전환된 SchoolYear는 더 이상 planning preparation 대상으로 보이지 않는다.
+- 새 active SchoolYear의 기존 manager가 operational authority를 얻고 이전 manager는 이를 잃는다.
+- `/teachers`와 `/classrooms`의 기본 active context는 새 active SchoolYear를 사용한다.
+- 새 planning SchoolYear, Teacher, Classroom, HomeroomAssignment 또는 User를 자동 생성·복사하지 않는다.
+
+Archived SchoolYear Teacher는 rollover 이후 current operational authority를 사용할 수 없어야 하고 새 active SchoolYear Teacher는 기존 authentication eligibility에 따라 로그인할 수 있어야 한다. 명시적인 session revocation이 필요한지는 implementation 단계에서 현재 authentication/session 구조를 확인해 결정한다. 이 결과를 위해 session-version framework를 선행 도입하지 않는다.
+
+현재 실제 연도와 무관한 미래 SchoolYear/archived 상태는 development 또는 browser 검증 전에 Rails console로 최소 test state를 구성할 수 있다. Console은 fixture/state setup에만 사용하고 실제 transition은 production rollover implementation을 통해 검증한다. Production helper/module/debug endpoint로 시간을 가장하지 않는다.
+
+B10은 자동·날짜 기반 rollover, next planning SchoolYear 자동 생성, Teacher/Classroom/Student 복사·승계, rollback/undo UI, generic lifecycle engine과 audit framework 확장을 포함하지 않는다.
 
 ## Temporary credential contract
 
@@ -300,19 +371,39 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 37. Global admin과 자기 School의 current operational manager는 School overview summary card에서 얇은 다음 학년도 준비 페이지로 진입할 수 있다. Ordinary teacher, 다른 School manager, planning Teacher, inactive School과 planning SchoolYear가 없는 context는 거부한다.
 38. 준비 페이지는 School/planning year/status, teacher/Classroom 수, HomeroomAssignment 현황과 planning manager 상태를 표시하고 기존 `/teachers`·`/classrooms` planning context 링크를 유지한다.
 39. Planning manager가 없으면 localized empty state를 표시하며 후보는 해당 planning SchoolYear의 annual Teacher로 제한한다. Global admin에게만 지정·교체·해제 control을 표시한다.
-40. 후속 rollover eligibility의 현재 확정된 최소 invariant는 planning SchoolYear에 manager가 정확히 1명인 것이다.
-41. Planning Teacher/Classroom 수와 HomeroomAssignment 연결 현황은 완료 조건이나 rollover blocker가 아닌 정보성 preparation status다.
-42. Planning Teacher 1명이 다음 학년도 manager이고 Classroom과 HomeroomAssignment가 0개인 상태도 최소 rollover invariant를 충족할 수 있다.
-43. 모든 Classroom에 담임이 연결될 필요가 없고 모든 Teacher가 grade나 HomeroomAssignment를 가질 필요도 없다.
-44. Student/roster와 planning Teacher/Classroom의 `active` boolean은 preparation 완료 또는 rollover eligibility 조건으로 사용하지 않는다.
-45. Preparation page는 Teacher/Classroom 수, HomeroomAssignment 연결 수/전체 Classroom 수와 planning manager 상태를 정보성 현황으로 표시한다.
-46. Preparation page는 Teacher/Classroom/Homeroom 현황을 `ready?` 또는 경고성 blocker로 표현하지 않으며 운영 시작 후에도 추가·변경할 수 있음을 안내한다.
-47. Planning manager가 없으면 향후 운영 전환에 manager 지정이 필요함을 안내하되 mutation control은 계속 global admin에게만 표시한다.
-48. 실제 rollover eligibility service/UI, 날짜 조건, locking, atomic transition과 recovery는 후속 specification에서 정한다.
-49. 잘못 준비한 planning Classroom은 허용된 global admin 또는 current operational manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있다.
-50. 잘못 준비한 planning member Teacher는 허용된 global admin 또는 current operational manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있고, planning manager Teacher는 global admin만 삭제할 수 있다.
-51. Planning Teacher hard delete는 그 준비 계정에 종속된 credential event 정리를 허용하지만 active/archived Teacher의 credential event 보존 semantics는 변경하지 않는다.
-52. B8 preparation status와 planning 삭제 원칙은 active-year runtime behavior 및 active/archived Teacher, Classroom과 HomeroomAssignment lifecycle을 변경하지 않는다.
+40. Planning manager가 0명이면 rollover business eligibility는 false다.
+41. Planning manager가 정확히 1명이면 rollover business eligibility는 true다.
+42. Planning manager가 비정상적으로 2명 이상이면 business eligibility는 false다.
+43. Planning Teacher 수는 eligibility에 영향을 주지 않는다.
+44. Planning Classroom 수는 eligibility에 영향을 주지 않으며 Classroom 0개도 허용한다.
+45. 모든 Classroom의 HomeroomAssignment 연결 여부와 모든 Teacher의 grade 또는 담임 배정 여부는 eligibility에 영향을 주지 않는다.
+46. Student/roster와 planning Teacher/Classroom의 `active` boolean은 eligibility checklist가 아니다.
+47. Preparation status와 rollover eligibility는 별개로 표시하며 Teacher/Classroom/Homeroom 현황을 완료/실패 checklist로 표현하지 않는다.
+48. Eligibility는 persisted status가 아니라 현재 planning manager data에서 계산하는 derived state다.
+49. Planning manager 지정과 삭제에 따라 eligibility 결과가 즉시 달라진다.
+50. School inactive, active/planning SchoolYear 누락·복수·소속 불일치 또는 status 불일치는 preparation blocker가 아닌 structural error로 fail closed한다.
+51. Planning SchoolYear는 current active SchoolYear와 같은 School에 속하고 연도가 active year + 1이어야 한다.
+52. Planning manager는 rollover 전 operational authority를 갖지 않으며 별도 successor record나 role 복사를 사용하지 않는다.
+53. 후속 eligibility query는 `eligible?`, manager와 manager count를 제공할 수 있고 authorization과 localized 문장을 담당하지 않는다.
+54. Preparation page는 manager 지정 여부만 운영 전환 조건으로 구분할 수 있으며 B9에서는 rollover button을 제공하지 않는다.
+55. 실제 rollover 실행 authority, confirmation, 날짜, locking/transaction, status transition, session 처리, rollback/recovery와 audit 정책은 후속 specification에서 결정한다.
+56. 잘못 준비한 planning Classroom은 허용된 global admin 또는 current operational manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있다.
+57. 잘못 준비한 planning member Teacher는 허용된 global admin 또는 current operational manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있고, planning manager Teacher는 global admin만 삭제할 수 있다.
+58. Planning Teacher hard delete는 그 준비 계정에 종속된 credential event 정리를 허용하지만 active/archived Teacher의 credential event 보존 semantics는 변경하지 않는다.
+59. B8 preparation status, B9 eligibility와 planning 삭제 원칙은 active-year runtime behavior 및 active/archived Teacher, Classroom과 HomeroomAssignment lifecycle을 변경하지 않는다.
+60. Actual rollover는 global admin만 실행할 수 있고 current operational manager, ordinary teacher와 planning Teacher는 실행할 수 없다.
+61. 정상 rollover는 current active SchoolYear를 archived로, target planning SchoolYear를 active로 변경하는 정확히 두 status transition만 수행한다.
+62. School, current active SchoolYear와 target planning SchoolYear를 순서대로 lock한 뒤 B9 structural safety와 manager eligibility를 transaction 안에서 다시 검증한다.
+63. 두 status 변경은 하나의 transaction에서 모두 commit되거나 모두 rollback되며 부분 전환을 허용하지 않는다.
+64. Inactive School, SchoolYear 누락·복수·소속/연도/status 불일치, manager cardinality 위반과 lock 이후 invariant 변경은 fail closed한다.
+65. 이미 완료된 rollover의 stale/repeated request는 성공으로 처리하지 않는다.
+66. Calendar year, 특정 월·일과 학기 시작일은 rollover eligibility 또는 실행 조건이 아니다.
+67. Confirmation은 두 SchoolYear의 status 변화, 새 manager authority와 undo 미제공을 명확히 알리며 action은 global admin의 preparation page에 둔다.
+68. 성공 후 active SchoolYear는 정확히 하나이고 planning SchoolYear는 0개일 수 있으며 기본 Teacher/Classroom context는 새 active SchoolYear를 사용한다.
+69. Planning manager의 role을 복사하거나 User를 만들지 않고 기존 annual Teacher가 active 전환 후 operational manager가 된다.
+70. 이전 manager는 archived SchoolYear 소속이 되어 current operational authority를 잃고 새 active Teacher의 login은 기존 authentication eligibility를 따른다.
+71. Session revocation 구현 필요성은 현재 session 구조를 확인해 결정하며 B10 계약만을 위해 generic session-version framework를 만들지 않는다.
+72. 미래 연도 검증은 Rails console의 최소 test state로 준비할 수 있지만 실제 transition은 production rollover operation으로 검증하고 time-travel/debug endpoint를 만들지 않는다.
 
 ## Non-goals
 
@@ -333,7 +424,12 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - Planning manager 지정에 따른 credential 재발급, HomeroomAssignment/profile/grade 변경
 - Planning HomeroomAssignment bulk 연결 workflow. 향후 필요하면 Teacher 단건 operation 계약과 active-year history 경계를 보존하는 별도 enhancement로 specification한다.
 - Permanent Teacher identity 또는 연도별 User 자동 연결
-- Manager 정확히 1명 외 rollover eligibility의 추가 조건, 실제 rollover 실행, reversal/recovery와 전환 UI
+- Manager 정확히 1명 외 business eligibility 조건
+- 자동 또는 날짜 기반 rollover와 next planning SchoolYear 자동 생성
+- Teacher/Classroom/Student 자동 복사·승계
+- Rollover reversal/recovery implementation, rollback/undo UI와 generic lifecycle engine
+- Production time-travel/debug module 또는 endpoint
+- Rollover audit framework 확장
 - Eligibility override, admin 강제 전환과 eligibility history/audit log
 - Archived read-only UI, archived login과 historical reporting
 
@@ -349,7 +445,9 @@ Phase B는 다음의 작은 implementation 단위로 나눈다.
 6. B6 — 기존 Teacher 설정 surface에서 같은 planning SchoolYear의 HomeroomAssignment 단건 연결·변경·해제
 7. B7 — 얇은 다음 학년도 준비 페이지와 그 안의 global-admin-only planning manager 지정·교체·해제
 8. B8 — preparation page의 정보성 planning 준비 현황과 최소 rollover invariant 경계
+9. B9 — manager exactly one business eligibility와 rollover target structural safety contract
+10. B10 — global-admin-only atomic active/archive SchoolYear rollover contract
 
 각 단위는 focused spec과 human verification을 거친다. 기본 query에 planning을 섞지 않고 explicit SchoolYear context를 별도로 resolve하며 lifecycle별 controller/view를 복제하지 않는다. 다음 학년도 준비 페이지는 status와 cross-resource entry/orchestration만 담당하고 Teacher/Classroom CRUD를 복제하지 않는다.
 
-Student preparation은 Classroom과 teacher/assignment 계약이 안정된 뒤 별도 human-reviewed bounded phase로 진행한다. Archived read-only enforcement는 rollover보다 먼저 구현한다. Rollover는 manager 정확히 1명이라는 최소 invariant 외의 eligibility 조건, confirmation, locking과 atomic transition을 별도 canonical spec에서 확정한 뒤에만 진행한다.
+Student preparation은 Classroom과 teacher/assignment 계약이 안정된 뒤 별도 human-reviewed bounded phase로 진행한다. Archived read-only enforcement는 rollover보다 먼저 구현한다. B10 implementation은 B9 target eligibility를 입력으로 삼고 global-admin-only confirmation, lock 이후 재검증과 atomic transition을 보존해야 한다.
