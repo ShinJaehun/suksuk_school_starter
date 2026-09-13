@@ -3,6 +3,7 @@ ko:
     school_management: "학교"
     school_operations: "학교 운영"
     classrooms: "교실"
+    classroom_bulk_management: "교실 일괄 관리"
     teacher_management: "선생님"
     teacher_bulk_management: "선생님 일괄 관리"
     my_page: "내 정보"

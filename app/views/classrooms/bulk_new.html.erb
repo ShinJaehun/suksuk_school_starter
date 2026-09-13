@@ -1,0 +1,87 @@
+<div class="space-y-6"
+     data-controller="classroom-management"
+     data-classroom-management-count-label-value="<%= t('admin.classrooms.bulk.count', count: '%{count}') %>">
+  <div>
+    <%= link_to t("admin.classrooms.bulk.back_to_setup"),
+          bulk_setup_admin_classrooms_path(@bulk_context_params.merge(grade: @default_grade)),
+          class: "text-sm underline" %>
+    <h1 class="mt-2 text-3xl font-semibold"><%= t("admin.classrooms.bulk.entry_title") %></h1>
+    <p class="mt-1 text-sm text-stone-600">
+      <%= @selected_school.name %> · <span data-classroom-management-target="count"></span>
+    </p>
+  </div>
+
+  <%= form_with url: bulk_create_admin_classrooms_path,
+        method: :post,
+        class: "space-y-4",
+        data: { turbo: false, action: "submit->classroom-management#submitOnce" } do %>
+    <%= hidden_field_tag :school_id, @selected_school.id %>
+    <%= hidden_field_tag :school_year_id, @selected_school_year.id %>
+    <%= hidden_field_tag :grade, @default_grade %>
+    <div class="overflow-x-auto rounded-md border border-stone-200 bg-white">
+      <table class="min-w-full divide-y divide-stone-200 text-sm">
+        <thead class="bg-stone-50">
+          <tr>
+            <th class="p-3 text-left"><%= t("filters.grade.label") %></th>
+            <th class="p-3 text-left"><%= t("admin.classrooms.bulk.class_label") %></th>
+            <th class="p-3 text-left"><%= t("admin.classrooms.bulk.teacher") %></th>
+            <th class="p-3 text-left"><%= t("admin.classrooms.bulk.exclude") %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          <% @entries.each_with_index do |entry, index| %>
+            <% value = ->(key) { entry.respond_to?(key) ? entry.public_send(key) : entry[key] || entry[key.to_s] } %>
+            <tr data-classroom-management-target="row">
+              <td class="p-3">
+                <%= select_tag "classrooms[rows][#{index}][grade]",
+                      options_for_select(
+                        1.upto(6).map { |grade| [t("classrooms.index.grade", grade: grade), grade] },
+                        value.call(:grade)
+                      ),
+                      class: "rounded-md border-stone-300",
+                      data: {
+                        classroom_management_target: "grade",
+                        action: "change->classroom-management#filterTeachers"
+                      } %>
+              </td>
+              <td class="p-3">
+                <%= text_field_tag "classrooms[rows][#{index}][class_label]",
+                      value.call(:class_label),
+                      class: "w-40 rounded-md border-stone-400",
+                      required: true %>
+              </td>
+              <td class="p-3">
+                <select name="classrooms[rows][<%= index %>][teacher_id]"
+                        class="min-w-32 rounded-md border-stone-300"
+                        data-classroom-management-target="teacher">
+                  <option value=""><%= t("admin.classrooms.bulk.unassigned") %></option>
+                  <% @teachers.each do |teacher| %>
+                    <option value="<%= teacher.id %>"
+                            data-grade="<%= teacher.grade %>"
+                            data-classroom-id="<%= teacher.assigned_classroom&.id %>"
+                            <%= "selected" if teacher.id.to_s == value.call(:teacher_id).to_s %>>
+                      <%= teacher.name %>
+                    </option>
+                  <% end %>
+                </select>
+                <% if value.call(:errors).present? %>
+                  <p class="mt-1 text-xs text-rose-700"><%= value.call(:errors).to_sentence %></p>
+                <% end %>
+              </td>
+              <td class="p-3">
+                <button type="button"
+                        class="text-sm font-medium text-rose-700 underline"
+                        data-action="classroom-management#removeRow">
+                  <%= t("admin.classrooms.bulk.exclude") %>
+                </button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= submit_tag t("admin.classrooms.bulk.add_many"),
+          class: "rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white",
+          data: { classroom_management_target: "submit" } %>
+  <% end %>
+</div>

@@ -1,0 +1,48 @@
+<section class="mx-auto w-full max-w-6xl space-y-6 pt-4">
+  <header>
+    <h1 class="text-2xl font-semibold"><%= t("admin.classrooms.bulk.title") %></h1>
+    <% if @selected_school_year %>
+      <p class="mt-1 text-sm text-stone-600"><%= t("classrooms.index.context_title", year: @selected_school_year.year, status: t("school_years.status.#{@selected_school_year.status}")) %></p>
+    <% end %>
+  </header>
+
+  <div class="flex flex-wrap gap-3">
+    <% if current_user.admin? %>
+      <%= form_with url: admin_classrooms_path, method: :get, class: "flex items-end gap-2" do %>
+        <div>
+          <%= label_tag :school_id, t("filters.school.label"), class: "block text-xs font-medium text-stone-600" %>
+          <%= select_tag :school_id, options_for_select([[t("filters.school.all"), ""]] + @filter_schools.map { |school| [school.name, school.id] }, @selected_school&.id), class: "mt-1 rounded-md border-stone-300" %>
+        </div>
+        <%= submit_tag t("filters.apply"), class: "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium" %>
+      <% end %>
+    <% end %>
+    <% if @selected_school %>
+      <%= form_with url: admin_classrooms_path, method: :get, class: "flex items-end gap-2" do %>
+        <%= hidden_field_tag :school_id, @selected_school.id %>
+        <div>
+          <%= label_tag :school_year_id, t("classrooms.index.school_year"), class: "block text-xs font-medium text-stone-600" %>
+          <%= select_tag :school_year_id, options_for_select(@school_year_options.map { |year| [t("classrooms.index.school_year_option", year: year.year, status: t("school_years.status.#{year.status}")), year.id] }, @selected_school_year&.id), class: "mt-1 rounded-md border-stone-300" %>
+        </div>
+        <%= submit_tag t("filters.apply"), class: "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium" %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% if @classroom_context_mutable %>
+    <%= turbo_frame_tag "classroom_management", data: { turbo_action: "advance" } do %>
+      <%= render "classrooms/management" %>
+    <% end %>
+  <% elsif @selected_school_year %>
+    <div class="space-y-3">
+      <p class="text-sm text-amber-700"><%= t("classrooms.index.context_read_only") %></p>
+      <div class="divide-y divide-stone-200 overflow-hidden rounded-md border border-stone-200 bg-white">
+        <% @classrooms.each do |classroom| %>
+          <article class="flex items-center justify-between px-4 py-3">
+            <span class="font-medium"><%= classroom_display_name(classroom) %></span>
+            <span class="text-sm text-stone-500"><%= classroom.teacher&.name || t("admin.classrooms.bulk.unassigned") %></span>
+          </article>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</section>

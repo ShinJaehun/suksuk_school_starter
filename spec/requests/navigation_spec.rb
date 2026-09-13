@@ -78,6 +78,8 @@ RSpec.describe 'Navigation', type: :request do
 
     expect(navbar.text).to include(I18n.t('navigation.teacher_bulk_management'))
     expect(navbar_links).to include(admin_teachers_path)
+    expect(navbar.text).to include(I18n.t('navigation.classroom_bulk_management'))
+    expect(navbar_links).to include(admin_classrooms_path)
   end
 
   it 'shows Teacher bulk management to a current operational manager' do
@@ -90,6 +92,8 @@ RSpec.describe 'Navigation', type: :request do
 
     expect(navbar.text).to include(I18n.t('navigation.teacher_bulk_management'))
     expect(navbar_links).to include(admin_teachers_path)
+    expect(navbar.text).to include(I18n.t('navigation.classroom_bulk_management'))
+    expect(navbar_links).to include(admin_classrooms_path)
   end
 
   it 'links a planning manager only to its explicit planning preparation contexts' do
@@ -106,6 +110,8 @@ RSpec.describe 'Navigation', type: :request do
     expect(navbar_links).to include(teachers_path(context), classrooms_path(context))
     expect(navbar.text).to include(I18n.t('navigation.teacher_bulk_management'))
     expect(navbar_links).to include(admin_teachers_path)
+    expect(navbar.text).to include(I18n.t('navigation.classroom_bulk_management'))
+    expect(navbar_links).to include(admin_classrooms_path)
     expect(navbar_links).not_to include(teachers_path, classrooms_path)
   end
 
@@ -116,6 +122,8 @@ RSpec.describe 'Navigation', type: :request do
     get classrooms_path
     expect(navbar.text).not_to include(I18n.t('navigation.teacher_bulk_management'))
     expect(navbar_links).not_to include(admin_teachers_path)
+    expect(navbar.text).not_to include(I18n.t('navigation.classroom_bulk_management'))
+    expect(navbar_links).not_to include(admin_classrooms_path)
 
     get admin_teachers_path
     expect(response).to redirect_to(root_path)

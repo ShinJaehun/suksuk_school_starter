@@ -319,7 +319,7 @@ Planning Classroom 준비의 기본 경로는 별도 planning surface나 bulk �
 - 기존 active-year Classroom 생성 동작과 inactive School에 대한 validation/error 응답 계약은 유지한다.
 - Planning Classroom 생성에서는 Student나 HomeroomAssignment를 함께 생성·복사·연결하지 않는다. Teacher 준비와 Classroom 준비 사이에도 선행 순서 precondition을 두지 않는다.
 
-여러 Classroom을 한 번에 생성하는 bulk workflow는 현재 canonical 필수 경로가 아니다. 필요성이 별도로 확인되면 단건 생성 계약을 우회하지 않는 optional enhancement로 다시 specification하고 승인받는다.
+Active/planning 공통 Classroom bulk UI, transaction, validation과 assignment final-state 계약의 primary canonical source는 [`classroom_bulk_management.md`](classroom_bulk_management.md)다. Planning context에서는 해당 문서의 structure preparation operation만 적용하며 Student data와 lifecycle operation을 만들지 않는다.
 
 ## Planning Classroom structure-edit contract
 
@@ -545,7 +545,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - School lifecycle, SchoolYear creation/rollover, rollover recovery/reversal, planning manager designation 또는 global-admin-only system operation 권한 확대
 - 다른 School에 대한 manager authority
 - Generic batch/workflow/state-machine/context framework
-- Planning Classroom bulk 전용 workflow. 향후 필요하면 단건 생성 계약을 보존하는 optional enhancement로 별도 specification한다.
+- Planning 전용 Classroom bulk workflow. 공통 bulk workflow는 [`classroom_bulk_management.md`](classroom_bulk_management.md)를 따른다.
 - Planning Teacher 재포함 시 temporary credential 자동 재발급
 - Planning Classroom deactivate/reactivate, `준비에서 제외`/`다시 포함`과 새로운 Classroom status enum
 - Planning Teacher/Classroom의 기존 `active` boolean을 preparation status나 rollover eligibility 조건 또는 별도 준비 상태로 사용하는 UX

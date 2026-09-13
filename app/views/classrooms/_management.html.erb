@@ -1,0 +1,101 @@
+<div class="space-y-4" data-controller="classroom-management" data-classroom-management-count-label-value="<%= t('admin.classrooms.bulk.count', count: '%{count}') %>" data-classroom-management-selection-label-value="<%= t('admin.classrooms.bulk.selection_count', count: '%{count}') %>">
+  <section class="rounded-md border border-stone-200 bg-white p-5">
+    <div class="flex flex-wrap gap-2">
+      <% [[t("admin.classrooms.bulk.all_grades"), "all"], *1.upto(6).map { |grade| [t("classrooms.index.grade", grade: grade), grade.to_s] }].each do |label, grade| %>
+        <%= link_to label, admin_classrooms_path(@bulk_context_params.merge(grade: grade)), class: "rounded-md border px-3 py-2 text-sm font-medium #{@grade == grade ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white'}", data: { turbo_frame: "classroom_management", turbo_action: "advance" } %>
+      <% end %>
+    </div>
+
+    <%= form_with url: bulk_update_admin_classrooms_path(@bulk_context_params), method: :patch, id: "classroom_bulk_update", data: { turbo_frame: "_top" } do %>
+      <%= hidden_field_tag :grade, @grade %>
+      <% if @entries.any? %>
+        <div class="mt-5 overflow-x-auto rounded-md border border-stone-200">
+          <table class="min-w-full divide-y divide-stone-200 text-sm">
+            <thead class="bg-stone-50">
+              <tr>
+                <th class="w-14 p-3 text-left"><%= check_box_tag :select_all_classrooms, "1", false, aria: { label: t("admin.classrooms.bulk.select_all") }, data: { classroom_management_target: "selectAll", action: "change->classroom-management#toggleAll" } %></th>
+                <th class="p-3 text-left"><%= t("filters.grade.label") %></th>
+                <th class="p-3 text-left"><%= t("admin.classrooms.bulk.class_label") %></th>
+                <th class="p-3 text-left"><%= t("admin.classrooms.bulk.teacher") %></th>
+                <th class="p-3 text-left"><%= t("admin.classrooms.bulk.students") %></th>
+                <th class="p-3 text-left"><%= t("admin.classrooms.bulk.status") %></th>
+                <th class="p-3 text-left"><%= t("ui.actions") %></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+              <% @entries.each_with_index do |entry, index| %>
+                <% value = ->(key) { entry.respond_to?(key) ? entry.public_send(key) : entry[key] || entry[key.to_s] } %>
+                <% classroom = value.call(:classroom) %>
+                <% permissions = @classroom_permissions.fetch(classroom.id) %>
+                <% editable = permissions[:update] && classroom.active? %>
+                <tr class="<%= 'bg-stone-50 text-stone-400' unless classroom.active? %>" data-classroom-management-target="row" data-track-dirty="true">
+                  <td class="w-14 p-3"><%= check_box_tag "classroom_ids[]", classroom.id, false, form: "classroom_selection_operation", aria: { label: t("admin.classrooms.bulk.select_classroom", name: classroom_display_name(classroom)) }, data: { classroom_management_target: "selection", grade_eligible: classroom.active? && classroom.teacher.nil?, action: "change->classroom-management#updateSelection" } %></td>
+                  <td class="p-3"><%= hidden_field_tag "classrooms[rows][#{index}][id]", classroom.id, disabled: !editable %><%= select_tag "classrooms[rows][#{index}][grade]", options_for_select(1.upto(6).map { |grade| [t("classrooms.index.grade", grade: grade), grade] }, value.call(:grade)), disabled: !editable, class: "rounded-md border border-stone-400 bg-white px-3 py-2 disabled:bg-stone-100", data: { classroom_management_target: "grade", action: "change->classroom-management#filterTeachers change->classroom-management#track" } %></td>
+                  <td class="p-3"><%= text_field_tag "classrooms[rows][#{index}][class_label]", value.call(:class_label), disabled: !editable, class: "w-32 rounded-md border border-stone-400 bg-white px-3 py-2 disabled:bg-stone-100", data: { action: "input->classroom-management#track" } %></td>
+                  <td class="p-3">
+                    <select name="classrooms[rows][<%= index %>][teacher_id]" <%= "disabled" unless editable %> class="min-w-32 rounded-md border border-stone-400 bg-white px-3 py-2 disabled:bg-stone-100" data-classroom-management-target="teacher" data-action="change->classroom-management#track">
+                      <option value=""><%= t("admin.classrooms.bulk.unassigned") %></option>
+                      <% @teachers.each do |teacher| %>
+                        <option value="<%= teacher.id %>" data-grade="<%= teacher.grade %>" data-classroom-id="<%= teacher.assigned_classroom&.id %>" <%= "selected" if teacher.id.to_s == value.call(:teacher_id).to_s %>><%= teacher.name %></option>
+                      <% end %>
+                    </select>
+                    <% if value.call(:errors).present? %>
+                      <p class="mt-1 text-xs text-rose-700"><%= value.call(:errors).to_sentence %></p>
+                    <% end %>
+                  </td>
+                  <td class="p-3"><%= t("admin.classrooms.bulk.student_count", count: @student_counts.fetch(classroom.id, 0)) %></td>
+                  <td class="p-3">
+                    <% if permissions[:deactivate] %>
+                      <%= link_to t("classroom_status.active"), deactivate_admin_classroom_path(classroom, @bulk_context_params), class: "underline", data: { turbo_method: :patch, turbo_frame: "_top" } %>
+                    <% elsif permissions[:reactivate] %>
+                      <%= link_to t("classroom_status.inactive"), reactivate_admin_classroom_path(classroom, @bulk_context_params), class: "underline", data: { turbo_method: :patch, turbo_frame: "_top" } %>
+                    <% else %>
+                      <%= t(classroom.active? ? "classroom_status.active" : "classroom_status.inactive") %>
+                    <% end %>
+                  </td>
+                  <td class="p-3">
+                    <div class="flex gap-3 font-medium">
+                      <%= link_to t("admin.classrooms.bulk.open"), classroom_path(classroom, @bulk_context_params), class: "underline", data: { turbo_frame: "_top" } %>
+                      <% if permissions[:destroy] %>
+                        <%= link_to t("ui.delete"), admin_classroom_path(classroom, @bulk_context_params), class: "text-rose-700 underline", data: { turbo_method: :delete, turbo_confirm: t("admin.classrooms.bulk.confirm_delete"), turbo_frame: "_top" } %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="mt-5 rounded-md border border-stone-200 py-10 text-center text-sm text-stone-500"><%= t("admin.classrooms.bulk.empty") %></div>
+      <% end %>
+    <% end %>
+
+    <%= form_with url: bulk_operation_admin_classrooms_path(@bulk_context_params), method: :patch, id: "classroom_selection_operation", class: "mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-stone-200 bg-stone-50 p-3", data: { turbo_frame: "_top" } do %>
+      <%= hidden_field_tag :grade, @grade %>
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-sm text-stone-500" data-classroom-management-target="selectionCount"><%= t("admin.classrooms.bulk.selection_count", count: 0) %></span>
+        <div class="flex items-center gap-2 border-l border-stone-300 pl-3">
+          <%= label_tag :bulk_grade, t("filters.grade.label"), class: "text-xs font-medium" %>
+          <%= select_tag :bulk_grade, options_for_select(1.upto(6).map { |grade| [t("classrooms.index.grade", grade: grade), grade] }), prompt: t("admin.classrooms.bulk.select_grade"), class: "rounded-md border-stone-300 text-sm" %>
+          <%= button_tag t("admin.classrooms.bulk.assign"), name: :operation, value: "assign_grade", disabled: true, class: "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm disabled:opacity-50", data: { classroom_management_target: "gradeSubmit" } %>
+        </div>
+        <% unless @bulk_school_year.planning? %>
+          <div class="flex gap-2 border-l border-stone-300 pl-3">
+            <%= button_tag t("classroom_status.reactivate"), name: :operation, value: "activate", disabled: true, class: "rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm disabled:opacity-50", data: { classroom_management_target: "operationSubmit" } %>
+            <%= button_tag t("classroom_status.deactivate"), name: :operation, value: "deactivate", disabled: true, class: "rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm disabled:opacity-50", data: { classroom_management_target: "operationSubmit" } %>
+          </div>
+        <% end %>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <%= link_to t("ui.buttons.new_classroom"), new_classroom_path(@bulk_context_params), class: "rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700", data: { turbo_frame: "_top" } %>
+        <%= link_to t("admin.classrooms.bulk.add_many"), bulk_setup_admin_classrooms_path(@bulk_context_params.merge(grade: @grade == "all" ? nil : @grade)), class: "rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700", data: { turbo_frame: "_top" } %>
+      </div>
+    <% end %>
+    <% if @entries.any? %>
+      <div class="mt-4 flex justify-end">
+        <%= button_tag t("admin.classrooms.bulk.save_changes"), type: :submit, form: "classroom_bulk_update", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white" %>
+      </div>
+    <% end %>
+  </section>
+</div>

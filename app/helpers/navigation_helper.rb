@@ -13,6 +13,7 @@ module NavigationHelper
       [
         navigation_item('navigation.school_management', schools_path),
         navigation_item('navigation.classrooms', classrooms_path),
+        (navigation_item('navigation.classroom_bulk_management', admin_classrooms_path) if can_manage_classrooms?),
         (navigation_item('navigation.teacher_management', teachers_path) if can_manage_teachers?),
         (navigation_item('navigation.teacher_bulk_management', admin_teachers_path) if can_manage_teachers?)
       ].compact
@@ -20,6 +21,7 @@ module NavigationHelper
       [
         navigation_item('navigation.school_operations', school_path(context[:manager].annual_school)),
         navigation_item('navigation.classrooms', classrooms_path),
+        navigation_item('navigation.classroom_bulk_management', admin_classrooms_path),
         navigation_item('navigation.teacher_management', teachers_path),
         navigation_item('navigation.teacher_bulk_management', admin_teachers_path)
       ]
@@ -30,6 +32,7 @@ module NavigationHelper
       }
       [
         navigation_item('navigation.classrooms', classrooms_path(planning_context)),
+        navigation_item('navigation.classroom_bulk_management', admin_classrooms_path),
         navigation_item('navigation.teacher_management', teachers_path(planning_context)),
         navigation_item('navigation.teacher_bulk_management', admin_teachers_path)
       ]
@@ -88,6 +91,12 @@ module NavigationHelper
     return false unless current_user
 
     TeacherManagementPolicy.new(current_user, User).access?
+  end
+
+  def can_manage_classrooms?
+    return false unless current_user
+
+    ClassroomPolicy.new(current_user, Classroom).create?
   end
 
   private

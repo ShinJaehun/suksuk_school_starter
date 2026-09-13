@@ -116,6 +116,15 @@ class Classrooms::ManagementContext
     school.school_years.planning.find(positive_id!(:school_year_id))
   end
 
+  def explicit_mutation_school_year
+    raise ActiveRecord::RecordNotFound if actor.admin? && school_id.blank?
+
+    school = selected_school
+    raise ActiveRecord::RecordNotFound unless school&.active?
+
+    school_years.where(status: %i[active planning]).find(positive_id!(:school_year_id))
+  end
+
   private
 
   attr_reader :actor, :params, :schools_scope
