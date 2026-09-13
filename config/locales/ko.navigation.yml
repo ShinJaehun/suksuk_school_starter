@@ -4,6 +4,7 @@ ko:
     school_operations: "학교 운영"
     classrooms: "교실"
     teacher_management: "선생님"
+    teacher_bulk_management: "선생님 일괄 관리"
     my_page: "내 정보"
     brand: "학교 서비스"
     avatar_alt: "%{name} avatar"

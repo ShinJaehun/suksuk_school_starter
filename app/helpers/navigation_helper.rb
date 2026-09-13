@@ -13,13 +13,15 @@ module NavigationHelper
       [
         navigation_item('navigation.school_management', schools_path),
         navigation_item('navigation.classrooms', classrooms_path),
-        (navigation_item('navigation.teacher_management', teachers_path) if can_manage_teachers?)
+        (navigation_item('navigation.teacher_management', teachers_path) if can_manage_teachers?),
+        (navigation_item('navigation.teacher_bulk_management', admin_teachers_path) if can_manage_teachers?)
       ].compact
     elsif context[:manager]
       [
         navigation_item('navigation.school_operations', school_path(context[:manager].annual_school)),
         navigation_item('navigation.classrooms', classrooms_path),
-        navigation_item('navigation.teacher_management', teachers_path)
+        navigation_item('navigation.teacher_management', teachers_path),
+        navigation_item('navigation.teacher_bulk_management', admin_teachers_path)
       ]
     elsif context[:planning_manager]
       planning_context = {
@@ -28,7 +30,8 @@ module NavigationHelper
       }
       [
         navigation_item('navigation.classrooms', classrooms_path(planning_context)),
-        navigation_item('navigation.teacher_management', teachers_path(planning_context))
+        navigation_item('navigation.teacher_management', teachers_path(planning_context)),
+        navigation_item('navigation.teacher_bulk_management', admin_teachers_path)
       ]
     elsif user.teacher?
       []

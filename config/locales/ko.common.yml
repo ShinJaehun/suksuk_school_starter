@@ -14,6 +14,8 @@ ko:
 
     # 버튼 텍스트 (세부용)
     buttons:
+      back: "돌아가기"
+      close: "닫기"
       create_student: "학생 추가"
       back_to_classroom: "%{name} 교실로 돌아가기"
       bulk_create_students: "여러 학생 자동 생성"

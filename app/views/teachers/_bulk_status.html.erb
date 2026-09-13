@@ -1,0 +1,10 @@
+<div id="<%= dom_id(teacher, :bulk_status) %>" data-teacher-active-state="<%= teacher.active? %>">
+  <% permissions = @bulk_permissions.fetch(teacher.id) %>
+  <% if teacher.active? && permissions[:deactivate] %>
+    <%= link_to t("teacher_status.active"), deactivate_admin_teacher_path(teacher, @bulk_context_params), data: { turbo_method: :patch, turbo_frame: "_top" }, class: "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800" %>
+  <% elsif teacher.inactive? && permissions[:reactivate] %>
+    <%= link_to t("teacher_status.inactive"), reactivate_admin_teacher_path(teacher, @bulk_context_params), data: { turbo_method: :patch, turbo_frame: "_top" }, class: "inline-flex rounded-full border border-stone-300 bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700" %>
+  <% else %>
+    <span class="inline-flex rounded-full border border-stone-300 bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700"><%= t(teacher.active? ? "teacher_status.active" : "teacher_status.inactive") %></span>
+  <% end %>
+</div>

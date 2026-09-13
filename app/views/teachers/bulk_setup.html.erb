@@ -1,0 +1,24 @@
+<div class="mx-auto max-w-xl space-y-6">
+  <div>
+    <%= link_to t("ui.buttons.back"), admin_teachers_path(@bulk_context_params.merge(grade: params[:grade])), class: "text-sm underline" %>
+    <h1 class="mt-2 text-3xl font-semibold"><%= t("admin.teachers.bulk.add_many") %></h1>
+    <p class="mt-1 text-sm text-stone-600"><%= t("admin.teachers.bulk.setup_description") %></p>
+  </div>
+
+  <%= form_with url: bulk_new_admin_teachers_path, method: :get, class: "space-y-4 rounded-md border border-stone-200 bg-white p-5" do |form| %>
+    <%= hidden_field_tag :school_id, @selected_school.id %>
+    <%= hidden_field_tag :school_year_id, @selected_school_year.id %>
+    <p><span class="text-sm font-medium"><%= t("filters.school.label") %></span><br><%= @selected_school.name %></p>
+    <p><span class="text-sm font-medium"><%= t("admin.teachers.index.school_year") %></span><br><%= @selected_school_year.year %></p>
+    <div>
+      <%= form.label :grade, t("filters.grade.label"), class: "text-sm font-medium" %>
+      <%= form.select :grade, options_for_select([[t("admin.teachers.bulk.grade_tabs.unassigned"), "unassigned"], *1.upto(6).map { |grade| [t("admin.teachers.bulk.grade_tabs.grade", grade: grade), grade] }], @grade), { prompt: t("admin.teachers.bulk.select_grade") }, class: "mt-1 w-full rounded-md border-stone-300", required: true %>
+    </div>
+    <div>
+      <%= form.label :count, t("admin.teachers.bulk.count_label"), class: "text-sm font-medium" %>
+      <%= form.number_field :count, value: @count, min: 1, max: 30, class: "mt-1 w-full rounded-md border-stone-300", required: true %>
+      <p class="mt-1 text-xs text-stone-500"><%= t("admin.teachers.bulk.count_help") %></p>
+    </div>
+    <%= form.submit t("admin.teachers.bulk.enter_roster"), class: "rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white" %>
+  <% end %>
+</div>

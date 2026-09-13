@@ -1,0 +1,57 @@
+<div class="space-y-6"
+     data-controller="teacher-bulk"
+     data-teacher-bulk-count-label-value="<%= t('admin.teachers.bulk.count', count: '%{count}') %>"
+     data-teacher-bulk-submitting-label-value="<%= t('admin.teachers.bulk.submitting') %>">
+  <div>
+    <%= link_to t("admin.teachers.bulk.back_to_setup"), bulk_setup_admin_teachers_path(@bulk_context_params.merge(grade: @grade)), class: "text-sm underline" %>
+    <h1 class="mt-2 text-3xl font-semibold"><%= t("admin.teachers.bulk.roster_title") %></h1>
+    <p class="mt-1 text-sm text-stone-600"><%= @selected_school.name %> · <%= @selected_school_year.year %> · <span data-teacher-bulk-target="count"></span> · <%= t("admin.teachers.bulk.password_auto") %></p>
+  </div>
+
+  <%= form_with url: bulk_create_admin_teachers_path, method: :post, class: "space-y-4", data: { turbo: false, action: "submit->teacher-bulk#submitOnce" } do %>
+    <%= hidden_field_tag :school_id, @selected_school.id %>
+    <%= hidden_field_tag :school_year_id, @selected_school_year.id %>
+    <%= hidden_field_tag :grade, @grade %>
+    <div class="overflow-x-auto rounded-md border border-stone-200 bg-white">
+      <table class="min-w-full divide-y divide-stone-200 text-sm">
+        <thead class="bg-stone-50">
+          <tr>
+            <th class="p-3 text-left"><%= t("ui.user_labels.name") %></th>
+            <th class="p-3 text-left"><%= t("users.teacher_sessions.login_id") %></th>
+            <th class="p-3 text-left"><%= t("admin.teachers.form.classrooms_label") %></th>
+            <th class="p-3 text-left"><%= t("admin.teachers.bulk.exclude") %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          <% @bulk_entries.each_with_index do |entry, index| %>
+            <% value = ->(key) { entry.respond_to?(key) ? entry.public_send(key) : entry[key] || entry[key.to_s] } %>
+            <% entry_errors = value.call(:errors) || [] %>
+            <tr data-teacher-bulk-target="row">
+              <td class="p-3 align-top"><%= text_field_tag "teachers[rows][#{index}][name]", value.call(:name), class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true %></td>
+              <td class="p-3 align-top">
+                <%= text_field_tag "teachers[rows][#{index}][login_id]", value.call(:login_id), class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true, autocomplete: "off" %>
+                <%= hidden_field_tag "teachers[rows][#{index}][grade]", value.call(:grade), data: { teacher_bulk_target: "grade" } %>
+              </td>
+              <td class="p-3 align-top">
+                <% if value.call(:grade).blank? %>
+                  <%= hidden_field_tag "teachers[rows][#{index}][classroom_id]", "" %>
+                  <%= t("admin.teachers.index.unassigned_grade") %>
+                <% else %>
+                  <select name="teachers[rows][<%= index %>][classroom_id]" class="min-w-32 rounded-md border border-stone-300 bg-white px-3 py-2 focus:border-stone-700 focus:ring-stone-700" data-teacher-bulk-target="classroom">
+                    <option value=""><%= t("admin.teachers.index.unassigned_grade") %></option>
+                    <% @classrooms.each do |classroom| %>
+                      <option value="<%= classroom.id %>" data-grade="<%= classroom.grade %>" <%= "selected" if classroom.id.to_s == value.call(:classroom_id).to_s %>><%= classroom_display_name(classroom) %></option>
+                    <% end %>
+                  </select>
+                <% end %>
+                <% if entry_errors.any? %><p class="mt-1 max-w-xs text-xs text-rose-700"><%= entry_errors.to_sentence %></p><% end %>
+              </td>
+              <td class="p-3 align-middle"><button type="button" class="inline-flex items-center text-sm font-medium text-rose-700 underline" data-action="teacher-bulk#removeRow"><%= t("admin.teachers.bulk.exclude") %></button></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <%= submit_tag t("admin.teachers.bulk.register_many"), class: "rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-60", data: { teacher_bulk_target: "submit" } %>
+  <% end %>
+</div>

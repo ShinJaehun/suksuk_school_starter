@@ -104,6 +104,20 @@ Rails.application.routes.draw do
   namespace :admin do
     root to: redirect("/schools")
 
+    resources :teachers, only: %i[index destroy] do
+      collection do
+        get :bulk_setup
+        get :bulk_new
+        post :bulk_create
+        patch :bulk_update
+        patch :bulk_operation
+      end
+      get :temporary_password, on: :member
+      patch :reissue_temporary_password, on: :member
+      patch :deactivate, on: :member
+      patch :reactivate, on: :member
+    end
+
     resources :schools, only: %i[new create] do
       patch :deactivate, on: :member
       patch :reactivate, on: :member
