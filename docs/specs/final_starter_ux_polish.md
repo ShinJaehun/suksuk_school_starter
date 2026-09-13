@@ -86,6 +86,17 @@ CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 - New/bulk create에 avatar 선택 또는 편집 기능을 추가하지 않는다.
 - 그 밖의 Teacher bulk layout과 behavior는 변경하지 않는다.
 
+### Teacher single-create return context
+
+Teacher 단건 생성과 temporary credential 결과 화면은 create를 시작한 management surface와 resolved context를 보존한다.
+
+- `/teachers`에서 시작하면 동일한 `school_id`, `school_year_id`를 가진 `/teachers`로 돌아간다.
+- `/admin/teachers`에서 시작하면 동일한 `school_id`, `school_year_id`를 가진 `/admin/teachers`로 돌아간다.
+- Admin bulk surface에서 시작한 경우 필요하면 현재 grade context도 보존할 수 있다.
+- Client가 제출한 arbitrary return URL로 redirect하지 않는다. 제한된 trusted source/sentinel 또는 동등한 server-controlled context만 허용한다.
+- Existing credential one-time/no-store 계약은 변경하지 않는다.
+- Bulk-create credential 결과의 기존 `/admin/teachers` 복귀 계약은 유지한다.
+
 ## 6. Planning 시작 위치
 
 Planning SchoolYear 생성은 navigation이 아니라 privileged operational mutation이다.
@@ -158,9 +169,36 @@ Existing select에서 `optgroup` 또는 동등하게 명확한 grouping을 우�
 
 Malformed, cross-School, cross-year 또는 unauthorized explicit context는 fallback 없이 fail closed한다.
 
-Planning Teacher/Classroom은 inactive data가 아니므로 row/card 자체에 opacity 또는 disabled-looking styling을 적용하지 않는다. Page/header에서 `YYYY학년도 · 준비 중`을 명확히 표시하고 active는 “운영 중”, archive는 read-only/history 의미를 기존 Tailwind badge와 description vocabulary로 구분한다. 새 design system을 만들지 않는다.
+Planning Teacher/Classroom은 inactive data가 아니므로 row/card 자체에 opacity 또는 disabled-looking styling을 적용하지 않는다. Page/header의 `YYYY학년도 · 준비 중` 표시는 유지하면서 planning row/card도 active 운영 data와 구분한다.
 
-## 10. Authority regression boundary
+- `/teachers`: selected SchoolYear가 planning이면 각 Teacher row에 amber 계열의 border/ring accent와 이름 근처의 작은 “준비 중” badge 또는 동등한 표시를 둔다. 기존 inactive Teacher styling과 의미를 섞지 않는다.
+- `/classrooms`: 기존 `school_color_card_class` 배경을 유지하고 amber 배경으로 덮지 않는다. Card에 amber border/ring accent와 작은 “준비 중” badge를 추가한다. Active/inactive Classroom lifecycle badge semantics는 변경하지 않는다.
+- Archive는 기존 read-only 표현을 유지하고 planning accent를 사용하지 않는다.
+- 기존 Tailwind visual vocabulary를 사용하며 새 design system을 만들지 않는다.
+
+## 10. Management filter UI consistency
+
+다음 management surface의 filter/select 영역은 같은 visual vocabulary와 순서를 사용한다.
+
+| Surface | Filter 순서 |
+|---|---|
+| `/schools` | 상태 |
+| `/classrooms` | 학교 → 학년도 → 학년 |
+| `/admin/classrooms` | 학교 → 학년도 |
+| `/teachers` | 학교 → 학년도 → 계정 상태 |
+| `/admin/teachers` | 학교 → 학년도 |
+
+공통 표현은 다음 수준으로 맞춘다.
+
+- Filter panel: `rounded-xl border border-slate-200 bg-white p-4`
+- Label: `text-xs font-semibold text-slate-500`
+- Select: `rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm`
+- Apply button: `rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50`
+- Mobile에서는 filter form과 control이 wrap될 수 있어야 한다.
+
+School filter와 SchoolYear/filter form이 dependent context 때문에 나뉘어 있어도 그대로 둔다. 하나의 form으로 억지로 합치거나 dependent-select Stimulus를 추가하지 않는다. Existing filtering, authorization, actor별 default, selected value와 SchoolYear optgroup semantics는 변경하지 않는다. Bulk grade tab과 selection/operation control은 이 panel 통일 범위 밖이다. 실제 중복을 줄이는 경우에만 작은 partial/helper를 사용하며 generic filter component/framework를 만들지 않는다.
+
+## 11. Authority regression boundary
 
 다음을 변경하지 않는다.
 
@@ -185,6 +223,9 @@ Planning Teacher/Classroom은 inactive data가 아니므로 row/card 자체에 o
 - Bulk avatar: `teachers/_bulk_edit_table`, bulk request/view assertion
 - Planning location: School overview/settings partial과 controller preparation, SchoolYear create request regression specs
 - Selector: 기존 Teacher/Classroom individual/bulk selector rendering 또는 작은 shared presentation helper, focused request specs
+- Teacher single-create return: trusted management-surface context 전달과 credential result return path request specs
+- Planning accent: Teacher row와 Classroom card의 planning-only badge/border rendering assertions
+- Filter consistency: 다섯 management surface의 panel/control class와 기존 filter behavior regression assertions
 - 새 사용자 표시 문자열은 locale key로 추가한다.
 
 ## Acceptance criteria
@@ -209,6 +250,14 @@ Planning Teacher/Classroom은 inactive data가 아니므로 row/card 자체에 o
 18. Planning row/card는 opacity 등으로 inactive처럼 보이지 않고 page/header context로 준비 상태를 구분한다.
 19. Planning cancellation route/control/service를 추가하지 않는다.
 20. Existing authority, archive immutability, planning Student prohibition과 cross-School/cross-year 경계를 보존한다.
+21. `/admin/teachers`에서 시작한 Teacher single-create 결과는 동일 School/SchoolYear의 `/admin/teachers`로 복귀한다.
+22. 일반 `/teachers`에서 시작한 Teacher single-create 결과는 동일 School/SchoolYear의 `/teachers`로 복귀한다.
+23. Arbitrary redirect target을 주입할 수 없고 bulk-create credential의 기존 return 계약은 유지된다.
+24. Planning Teacher row는 amber badge/accent로 active row와 구분되며 inactive처럼 opacity가 낮아지지 않는다.
+25. Planning Classroom card는 School color background와 lifecycle 의미를 유지하면서 amber badge/border로 planning임을 식별할 수 있다.
+26. Archive에는 planning visual accent를 적용하지 않는다.
+27. 다섯 management surface의 filter panel, label, select와 apply button styling 및 지정된 배치 순서가 일관된다.
+28. Filter form 분리, SchoolYear optgroup, filtering, authorization와 context default/fail-closed semantics는 회귀하지 않는다.
 
 ## Explicit non-goals
 
@@ -218,10 +267,14 @@ Planning Teacher/Classroom은 inactive data가 아니므로 row/card 자체에 o
 - Historical reporting redesign
 - Planning Student roster
 - Planning-only Teacher/Classroom controller/view
+- Dependent select JavaScript
+- Generic filter architecture/component/framework
 - Generic context framework
 - Generic credential framework 또는 password complexity system
 - Route namespace redesign
 - Student card redesign beyond avatar class
 - Teacher bulk redesign beyond name-cell avatar
+- School color system 변경
+- Inactive Teacher/Classroom lifecycle 표현 변경
 - `login_id` edit support
 - 별도 Teacher show page
