@@ -12,7 +12,7 @@
 - Target School은 active이고 active SchoolYear와 planning SchoolYear가 각각 정확히 하나 존재한다.
 - Planning SchoolYear는 current active SchoolYear의 바로 다음 학년도다.
 - Teacher User와 Classroom의 `school_year_id`는 생성 후 변경하지 않는다.
-- `/teachers`와 `/classrooms`는 active-year canonical surface로 유지한다.
+- `/teachers`와 `/classrooms`는 canonical individual management surface로 유지하며 active, explicit planning과 authorized archive context에서 재사용한다.
 - Planning ordinary Teacher는 planning 상태에서 로그인할 수 없고, active planning manager만 명시적인 planning login context로 기존 Teacher login surface를 사용할 수 있다.
 - Planning Student 준비, rollover reversal/recovery, archived authentication과 별도 generic historical UI는 이 phase 밖이다.
 
@@ -139,7 +139,7 @@ Planning manager는 rollover 전에도 자기 School의 School operation authori
 
 Preparation page는 기존 정보성 count를 유지하면서 향후 작은 `운영 전환 조건` 영역에서 manager 지정 여부만 eligibility 조건으로 구분할 수 있다. Manager가 없으면 `다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다.`에 해당하는 localized 안내를 표시하고, Teacher/Classroom/Homeroom count를 완료/실패 checklist로 바꾸지 않는다. B9에서는 rollover button을 추가하지 않는다.
 
-B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, 실행 날짜, locking과 transaction ordering, active → archived 및 planning → active transition, session revocation, failure rollback, recovery/idempotency와 audit/logging 필요 여부는 실제 rollover canonical specification에서 별도로 결정한다.
+B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, locking과 transaction ordering, active → archived 및 planning → active transition과 failure rollback은 이 문서의 B10 actual rollover contract에서 정의한다. Rollover reversal/recovery와 별도 audit 확장은 후속 범위다.
 
 ## Actual SchoolYear rollover contract
 
@@ -175,7 +175,7 @@ Repeated request는 이미 완료된 transition을 idempotent success로 가장�
 
 B10은 calendar/date restriction을 두지 않는다. `Date.current.year`, 특정 월·일 또는 학기 시작일은 eligibility나 실행 조건이 아니며 global admin의 명시적 실행과 B9 invariant만 기준으로 삼는다. 미래 연도 검증을 위한 production time-travel helper나 debug endpoint를 만들지 않는다.
 
-향후 implementation은 global admin의 planning preparation page에 rollover action을 제공하고 실행 전에 명확한 confirmation을 요구한다. Confirmation은 현재 학년도가 archived되고 다음 학년도가 active가 되며 새 학년도 manager가 운영 권한을 얻고 단순 취소/undo 기능은 제공되지 않는다는 의미를 전달한다. 정확한 사용자 문구는 locale implementation 단계에서 정한다.
+Global admin의 planning preparation page는 rollover action을 제공하고 실행 전에 명확한 confirmation을 요구한다. Confirmation은 현재 학년도가 archived되고 다음 학년도가 active가 되며 새 학년도 manager가 운영 권한을 얻고 단순 취소/undo 기능은 제공되지 않는다는 의미를 전달한다. 정확한 사용자 문구는 locale에서 관리한다.
 
 ### Runtime result와 authentication boundary
 
@@ -251,7 +251,7 @@ Global admin, current operational manager와 active planning manager는 authoriz
 - Planning HomeroomAssignment 생성·교체·해제
 - `/schools/:school_id/planning` preparation page 조회
 
-Planning manager Teacher 자체의 hard delete는 계속 global admin만 수행한다. Manager 지정·교체·해제는 global admin 또는 자기 School의 authorized current operational manager만 수행하며 planning manager 자신은 수행할 수 없다. Planning manager의 School operation authority는 자기 School의 active operation, exact planning preparation과 archive read-only 조회로 제한한다. School lifecycle, actual rollover, global-admin-only operation, generic `/admin/*`와 다른 School에는 접근할 수 없다. 별도 planning-manager CRUD, collaborative editing, reservation/presence 또는 conflict framework를 만들지 않고 기존 validation과 transaction behavior를 사용한다.
+Planning manager Teacher 자체의 hard delete는 계속 global admin만 수행한다. Manager 지정·교체·해제는 global admin 또는 자기 School의 authorized current operational manager만 수행하며 planning manager 자신은 수행할 수 없다. Planning manager의 School operation authority는 자기 School의 active operation, exact planning preparation과 archive read-only 조회로 제한한다. 자기 School scope의 `/admin/teachers`와 `/admin/classrooms` bulk operation은 사용할 수 있지만, School lifecycle, actual rollover, 그 밖의 global-admin-only system operation과 다른 School에는 접근할 수 없다. 별도 planning-manager CRUD, collaborative editing, reservation/presence 또는 conflict framework를 만들지 않고 기존 validation과 transaction behavior를 사용한다.
 
 ### Login context와 authentication
 
@@ -307,7 +307,7 @@ Planning Teacher는 아직 operational account가 아니므로 해당 준비 Tea
 Planning Classroom 준비의 기본 경로는 별도 planning surface나 bulk 전용 workflow가 아니다. 기존 `/classrooms/new`와 `POST /classrooms`를 명시적인 School/SchoolYear context와 함께 재사용하여 한 번에 하나의 Classroom을 생성한다.
 
 - Global admin은 선택한 active School의 active 또는 planning SchoolYear에 생성할 수 있다.
-- Current operational manager는 자기 School의 current active SchoolYear와 바로 다음 planning SchoolYear에 생성할 수 있다.
+- Current operational manager와 active planning manager는 자기 School의 authorized active SchoolYear와 exact immediate planning SchoolYear에 생성할 수 있다.
 - Ordinary teacher와 그 밖의 actor는 Classroom을 생성할 수 없다.
 - Archived SchoolYear에는 actor와 관계없이 생성할 수 없다.
 - Explicit `school_id`와 `school_year_id`는 client가 제출하는 context일 뿐 authority source가 아니다. Server가 actor의 authorized School scope에서 School을 resolve하고 SchoolYear의 School 소속, 허용 status와 manager의 바로 다음 planning year 조건을 매 request에서 다시 확인한다.
@@ -327,7 +327,7 @@ Active/planning 공통 Classroom bulk UI, transaction, validation과 assignment 
 
 - 수정 가능한 필드는 `grade`와 `class_label`뿐이다. `school_year_id`, School, `active`와 그 밖의 lifecycle/status field는 변경하지 않는다.
 - Global admin은 명시적으로 선택하고 server-side로 승인된 active School의 planning SchoolYear Classroom을 수정할 수 있다.
-- Current operational manager는 자기 active School의 current active SchoolYear 바로 다음 planning SchoolYear Classroom만 수정할 수 있다.
+- Current operational manager와 active planning manager는 자기 active School의 exact immediate planning SchoolYear Classroom을 수정할 수 있다.
 - Ordinary teacher와 그 밖의 actor는 planning Classroom 수정 authority를 얻지 못한다.
 - School, SchoolYear와 Classroom id는 actor에게 허용된 planning association scope에서 resolve한다. Malformed, cross-School, cross-year, archived, inactive School 또는 unauthorized context는 다른 row나 SchoolYear로 fallback하지 않고 fail closed한다.
 - Persisted Classroom의 `school_year_id`는 변경할 수 없고 update payload의 School/SchoolYear id를 신뢰하거나 mass assignment하지 않는다.
@@ -354,7 +354,7 @@ Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 plann
 - Planning Teacher 설정은 기존 active Teacher의 `teacher-classroom-picker` UX를 재사용한다. 사용자가 `membership_grade`를 바꾸면 별도 저장 없이 같은 화면에서 해당 grade의 planning Classroom 후보를 즉시 다시 불러오고, Classroom을 선택한 뒤 최종 저장 한 번으로 grade와 HomeroomAssignment를 함께 반영한다. Grade를 먼저 저장하고 edit 화면에 다시 진입하게 요구하지 않는다.
 - Classroom 후보 조회 request도 기존 explicit School/SchoolYear와 Teacher context를 보존하고 server-side authorization과 ownership/status 검증을 다시 통과해야 한다. 다른 Teacher에게 이미 배정된 Classroom은 UI 후보에서 제외하고 직접 제출도 거부하며 기존 담임을 자동 해제하지 않는다.
 - Global admin은 명시적으로 선택하고 server-side로 승인된 active School의 planning SchoolYear에서 수행할 수 있다.
-- Current operational manager는 자기 active School의 current active SchoolYear 바로 다음 planning SchoolYear에서만 수행할 수 있다.
+- Current operational manager와 active planning manager는 자기 active School의 exact immediate planning SchoolYear에서 수행할 수 있다.
 - Ordinary teacher와 그 밖의 actor는 planning assignment authority를 얻지 못한다.
 - School, SchoolYear, Classroom과 teacher id는 모두 actor에게 허용된 planning association scope에서 resolve한다. Malformed, cross-School, cross-year, archived 또는 unauthorized 조합은 다른 context나 row로 fallback하지 않고 fail closed한다.
 - Active 또는 archived year의 id는 planning teacher picker와 mutation scope에 포함하지 않는다.
@@ -426,7 +426,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 
 ## Acceptance criteria
 
-1. Global admin은 모든 active School, current operational manager는 자기 School의 planning teacher/Classroom/HomeroomAssignment만 준비할 수 있다.
+1. Global admin은 모든 active School에서, current operational manager와 active planning manager는 자기 School의 exact immediate planning SchoolYear에서 Teacher/Classroom/HomeroomAssignment를 준비할 수 있다.
 2. Ordinary active Teacher, planning ordinary Teacher, archived/inactive Teacher와 그 밖의 unauthorized actor는 planning preparation authority를 얻지 못한다.
 3. Teacher bulk는 member annual User만 만들고 기존 active teacher를 이동·복제하지 않는다.
 4. Planning manager 지정·교체·해제는 teacher bulk와 분리되며 global admin 또는 자기 School의 exact immediate planning context를 관리하는 current operational manager만 수행한다. Planning manager 자신과 ordinary Teacher는 수행할 수 없고 successor 추천/proposal workflow는 제공하지 않는다.
@@ -438,7 +438,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 10. Planning teacher/Classroom 생성과 담임 연결은 단계적으로 분리되며 Classroom 단건 생성은 Student나 담임을 함께 생성·연결하지 않는다. School overview는 준비된 planning teacher 수, 준비된 planning Classroom 수, 담임 연결 현황과 manager 준비 상태 및 entry를 제공한다.
 11. Planning member Teacher는 생성, 기본 정보/grade 수정, HomeroomAssignment 연결·교체·해제와 deactivate/reactivate를 지원한다. Deactivation은 current 준비 assignment를 history 없이 삭제하고 reactivation은 이를 자동 복구하지 않는다.
 12. Global admin은 선택한 active School의 planning Classroom에서 기존 edit/update surface로 `grade`와 `class_label`을 수정할 수 있다.
-13. Current operational manager는 자기 active School의 바로 다음 planning Classroom에서 같은 구조 정보를 수정할 수 있다.
+13. Current operational manager와 active planning manager는 자기 active School의 exact immediate planning Classroom에서 같은 구조 정보를 수정할 수 있다.
 14. Ordinary teacher와 그 밖의 actor는 planning Classroom을 수정할 수 없다.
 15. Archived, cross-School, cross-year, malformed, inactive School과 unauthorized Classroom update context는 fail closed한다.
 16. Planning Classroom의 `school_year_id`는 update payload나 context 조작으로 변경할 수 없다.
@@ -480,7 +480,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 52. Planning manager는 rollover 전 자기 School의 School operation authority를 갖지만 current operational manager 또는 SchoolYear governance actor가 되는 것은 아니며 별도 successor record나 role 복사를 사용하지 않는다.
 53. 후속 eligibility query는 `eligible?`, manager와 manager count를 제공할 수 있고 authorization과 localized 문장을 담당하지 않는다.
 54. Preparation page는 manager 지정 여부만 운영 전환 조건으로 구분할 수 있으며 B9에서는 rollover button을 제공하지 않는다.
-55. 실제 rollover 실행 authority, confirmation, 날짜, locking/transaction, status transition, session 처리, rollback/recovery와 audit 정책은 후속 specification에서 결정한다.
+55. B9는 rollover eligibility만 정의하며 actual rollover의 authority, confirmation, locking/transaction과 status transition은 B10 contract를 따른다. Reversal/recovery와 별도 audit 확장은 후속 범위다.
 56. 잘못 준비한 planning Classroom은 허용된 global admin, current operational manager 또는 active planning manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있다.
 57. 잘못 준비한 planning member Teacher는 허용된 global admin, current operational manager 또는 active planning manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있고, planning manager Teacher는 global admin만 삭제할 수 있다.
 58. Planning Teacher hard delete는 그 준비 계정에 종속된 credential event 정리를 허용하지만 active/archived Teacher의 credential event 보존 semantics는 변경하지 않는다.
@@ -514,7 +514,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 86. Archived browsing을 위해 Teacher login/runtime guard를 완화하지 않는다.
 87. Annual Teacher User, annual credential와 학년도별 role/grade/Classroom 모델을 유지하고 persistent personal identity나 cross-year account linking을 도입하지 않는다.
 88. Current operational manager와 active planning manager는 자기 School의 active SchoolYear에서 기존 global admin의 Teacher/Classroom/Student School operation을 School 범위로 제한해 사용할 수 있고, exact immediate planning SchoolYear에서는 동일한 Teacher/Classroom/Homeroom preparation authority를 가진다.
-89. Planning manager는 자기 School archive를 read-only로 조회할 수 있지만 자신의 manager 지정·교체·해제, School lifecycle, actual rollover, global-admin-only system operation, generic `/admin/*` 또는 다른 School operation을 수행할 수 없다.
+89. Planning manager는 자기 School의 active/planning `/admin/teachers`와 `/admin/classrooms` bulk operation 및 archive read-only 조회를 사용할 수 있지만, 자신의 manager 지정·교체·해제, School lifecycle, actual rollover, 그 밖의 global-admin-only system operation 또는 다른 School operation을 수행할 수 없다.
 90. Planning ordinary Teacher는 planning 상태에서 로그인할 수 없다.
 91. Active planning manager는 기존 School Teacher login page에서 명시적인 planning context를 선택해 로그인할 수 있다.
 92. Login page default는 current active SchoolYear이고 active School, current active SchoolYear, exact immediate planning SchoolYear와 그 planning SchoolYear의 active manager 정확히 1명이 모두 존재할 때만 planning option을 제공한다.
@@ -535,7 +535,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 
 - Route, controller, model, policy, service, view와 migration 구현
 - Current manager의 active 기본 context와 planning manager의 planning 기본 context 변경
-- Planning 전용 `/planning/teachers`, `/admin/teachers`, `/admin/classrooms`와 lifecycle별 controller/view 복제
+- Planning만을 위한 별도 `/planning/teachers` route나 `/admin/teachers`, `/admin/classrooms`의 planning 전용 복제 및 lifecycle별 controller/view 복제
 - Active teacher, Classroom, HomeroomAssignment의 자동 복제·승계
 - Student planning registration, roster, PIN 또는 login
 - Planning ordinary Teacher login

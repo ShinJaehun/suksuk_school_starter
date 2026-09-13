@@ -2,102 +2,73 @@
 
 ## 문서 목적
 
-현재 starter에 실제로 존재하는 공통 학교·교실·사용자 구조를 기록한다. 추출 과정에서 제거된 service-specific 도메인은 현재 시스템으로 설명하지 않는다.
+현재 starter에 실제로 존재하는 공통 학교·학년도·교실·사용자 구조를 기록한다. 이 문서는 historical migration 구조가 아니라 현재 runtime을 설명한다.
 
-이 문서는 현재 runtime을 설명한다. annual teacher User, SchoolYear, HomeroomAssignment와 Classroom 직속 Student가 현재 구현이다. Student에는 별도 StudentEnrollment를 두지 않는다.
+## 사용자와 인증
 
-## 핵심 역할
+- global admin과 Teacher는 `User`다. Teacher는 정확히 하나의 `SchoolYear`에 속한다.
+- Teacher의 학교, annual role과 학년의 canonical source는 각각 `User.school_year.school`, `User.school_role`, `User.grade`다. 별도 school membership fallback은 없다.
+- Student는 하나의 Classroom에 직접 속한 별도 `Student` 모델이다. 학생용 `User`, 학생 membership 또는 `StudentEnrollment`는 runtime/schema에 없다.
+- Teacher는 `login_id + password` Devise 흐름을 사용한다. 생성·재발급되는 임시 자격증명은 일회성 표시와 audit 계약을 따른다.
+- Student는 Classroom token과 PIN을 확인한 뒤 짧은 Rails session을 사용한다. `Student.active`와 School/Classroom/SchoolYear 상태가 session eligibility를 결정한다.
 
-- `admin`: 전체 학교 범위의 관리 권한을 가진다.
-- `teacher`: 하나의 `SchoolYear`에 속하며 `User.school_role`로 member 또는 manager 역할을 가진다.
-- `student`: 별도 `Student` row로 하나의 Classroom에 직접 속한다.
+## SchoolYear와 운영 context
 
-teacher와 admin은 `User`이고 student는 별도 `Student`다. Student는 Devise User가 아니며 Rails session + PIN으로 인증한다.
+- `SchoolYear.status`는 `planning`, `active`, `archived`다. School에는 active와 exact immediate planning SchoolYear가 각각 최대 하나다.
+- current operational manager의 기본 Teacher/Classroom context는 자기 School의 active year다.
+- eligible planning manager의 기본 context는 자기 exact immediate planning year다.
+- 두 manager 모두 자기 School의 active, exact planning과 archived year를 selector에서 선택할 수 있다. archived context는 read-only다.
+- global admin은 명시적으로 School과 SchoolYear를 선택해 모든 School을 관리한다.
+- malformed, cross-School 또는 unauthorized context는 다른 year로 fallback하지 않는다.
+- planning에서는 Teacher, Classroom과 current `HomeroomAssignment` 구성을 준비한다. Student 명단 준비 mutation은 현재 제공하지 않는다.
+- actual rollover는 global admin-only governance operation이다.
 
-## 인증과 학생 세션
+## Teacher와 Classroom
 
-- teacher와 admin은 Devise 로그인 흐름을 사용한다.
-- inactive teacher는 로그인하거나 일반 운영 권한을 얻을 수 없다.
-- student는 교실 범위 PIN/token 로그인 흐름을 사용한다.
-- PIN 로그인은 classroom, active Student와 PIN을 서버에서 확인한다.
-- 학생 로그인 성공 시 기존 session을 reset하고 별도 Student session context를 설정한다.
-- student session은 짧은 TTL과 마지막 활동 시각으로 관리한다.
-- 만료되거나 재발급으로 무효화된 token은 사용할 수 없다.
+모든 Classroom은 하나의 변경 불가능한 SchoolYear에 속하며 학교는 `Classroom.school_year.school`로 결정한다. Classroom은 필수 `grade`, normalized `class_label`과 active/inactive lifecycle을 가진다.
 
-## 학교와 교실
-
-- 모든 `Classroom`은 하나의 변경 불가능한 `SchoolYear`, normalized `class_label`, active/inactive lifecycle을 가진다. 학교는 `classroom.school_year.school`로 결정한다.
-- `Classroom.grade`는 필수 정수 1부터 6이며 표시·filter·정렬 정책은 canonical grade spec을 따른다.
-- global admin은 모든 학교 범위, manager는 자기 학교 범위에서 school과 classroom을 관리한다.
-- 일반 teacher는 담당 active classroom만 운영한다.
-- school 또는 classroom 비활성화는 물리 삭제가 아니며 Student row와 과거 기록을 보존한다.
-
-## Teacher의 학교와 학년
-
-- teacher의 현재 학교는 `User.school_year.school`, 학교 역할은 `User.school_role`, 학년은 `User.grade`가 canonical source다.
-- teacher는 정확히 하나의 `SchoolYear`에 속하고 `User.school_role`은 `member` 또는 `manager`다.
-- `User.grade`는 `nil` 또는 정수 1부터 6이다.
-- teacher는 classroom 없이 school과 grade만 가질 수 있다.
-- 별도 Grade model은 사용하지 않는다.
-- 한 active SchoolYear의 manager는 없거나 한 명이며 canonical source는 `User.school_role == "manager"`다.
-- manager가 없는 임시 상태는 허용하지만 한 school에 둘 이상을 둘 수 없다. global admin은 manager 수에 포함하지 않는다.
-- manager 지정·교체·해제는 global admin만 수행하고 `School.manager_id`는 추가하지 않는다.
-- teacher의 학교 소속과 권한에는 별도 membership model을 두지 않는다.
-
-## Teacher assignment
-
-현재 구조는 다음과 같다.
+담임 관계의 canonical source는 current `HomeroomAssignment`다.
 
 ```text
 HomeroomAssignment(classroom_id, teacher_id, started_on, ended_on)
 current: ended_on IS NULL
-partial unique: current classroom_id / current teacher_id
-
 Teacher 0..1 ↔ 0..1 Classroom
 ```
 
-- teacher는 담당 classroom이 없거나 하나다.
-- classroom은 담당 teacher가 없거나 한 명이다.
-- 신규 assignment 시 teacher와 classroom은 같은 SchoolYear와 grade를 가지며 teacher, classroom, SchoolYear, School이 active여야 한다.
-- 학생 classroom 소속은 `Student.classroom_id`가 canonical source다.
-- teacher 비활성화 시 current assignment를 종료하고 재활성화 때 자동 복원하지 않는다.
-- classroom 비활성화 시 current assignment와 Student row를 보존한 채 운영을 잠그며, 재활성화하면 보존된 관계를 다시 사용한다.
-- classroom grade 변경이 `User.grade`와 충돌하면 먼저 assignment를 해제해야 한다.
+- Teacher와 Classroom은 같은 SchoolYear와 grade여야 한다.
+- active assignment 변경은 종료 이력을 보존하고, planning assignment 변경은 준비 데이터를 교체한다.
+- Teacher 비활성화는 current assignment를 종료하며 재활성화 때 자동 복원하지 않는다.
+- Classroom 비활성화는 Student와 assignment/history를 삭제하지 않고 운영을 잠근다.
 
-## Teacher 운영 영역
+## 운영 surface
 
-- `/teachers`는 global admin과 manager가 active SchoolYear teacher를 관리하는 canonical 개별 teacher 관리 영역이다.
-- global admin은 각 학교의 active SchoolYear teacher를, manager는 자기 active SchoolYear teacher만 관리한다.
-- 일반 teacher는 접근할 수 없다.
-- teacher form은 학교, 학년, 단일 학급 순서로 구성한다.
-- 학교와 학년이 유효할 때만 같은 SchoolYear·grade의 active 미배정 classroom을 후보로 조회한다.
-- teacher 생성 시 temporary password를 자동 발급하며 기존 teacher update에서는 password를 변경하지 않는다.
-- teacher 목록은 annual school, `User.grade`, 단일 classroom과 lifecycle 상태를 표시한다.
+- `/teachers`: 기존 개별 Teacher 목록·생성·편집·lifecycle·임시 비밀번호 관리
+- `/admin/teachers`: active/planning Teacher 일괄 생성·수정·operation, archive read-only
+- `/classrooms`: 기존 Classroom 카드·상세·설정·member/Student 운영
+- `/admin/classrooms`: active Classroom 구조·담임·lifecycle 일괄 관리, planning 구조·담임 준비, archive read-only
 
-## 학생 관리
+`/admin/teachers`와 `/admin/classrooms`는 이름과 달리 global-admin-only surface가 아니다. Global admin, current operational manager와 eligible planning manager가 각자의 SchoolYear scope에서 사용한다. Ordinary Teacher는 Teacher 관리 surface에 접근하지 않고 current HomeroomAssignment로 배정된 active Classroom 범위만 운영한다.
 
-- 학생의 classroom 소속 source는 `Student.classroom_id`다.
-- `Student.active`가 현재 운영 포함 여부를 나타내며 inactive Student도 row와 기존 기록을 보존한다.
-- `Student.student_number`는 nullable이고 같은 classroom의 active Student끼리 non-null 번호가 중복될 수 없다.
-- 학생은 classroom별 name, student_number, gender, avatar와 PIN을 Student 하나에서 관리한다.
-- 담당 teacher와 admin은 학생 명부, 학생 정보와 PIN을 관리할 수 있다.
-- 학생 자신은 별도 Student session에서 허용된 자기 정보와 PIN 중심 흐름만 사용한다.
-- 학생 avatar는 gender에 맞는 `avatar_key` pool과 fallback 정책을 유지한다.
-- 학생용 `User`와 `ClassroomMembership`은 runtime/schema에 존재하지 않는다.
+## Student 운영
+
+- Student 소속과 lifecycle의 canonical source는 `Student.classroom_id`, `Student.active`다.
+- active operational Classroom에서 권한 있는 global admin, 자기 School manager 또는 담당 ordinary Teacher가 roster, profile, lifecycle과 PIN/token 관련 operation을 수행한다.
+- archived Student 자료는 자기 scope에서 read-only다.
+- planning Classroom의 Student roster CRUD는 현재 지원하지 않는다.
 
 ## 권한 원칙
 
-- Pundit policy와 `policy_scope`가 서버측 권한의 기본 경계다.
-- controller와 domain validation은 school, grade, lifecycle과 assignment cardinality를 다시 확인한다.
-- `school_id`, `teacher_id`, `classroom_id`와 Student id parameter 조작으로 scope를 넓힐 수 없다.
-- manager 권한은 자기 school로 제한하고 일반 teacher는 담당 classroom 밖으로 확장하지 않는다.
-- UI 숨김만으로 권한을 보장하지 않는다.
+- Pundit policy와 `policy_scope`가 서버측 권한의 최종 기준이다.
+- global admin은 모든 School의 운영 관리자다.
+- current operational manager와 eligible planning manager는 자기 School의 active/planning 운영 관리자이며 archive를 read-only로 본다.
+- manager 지정은 global admin 또는 current operational manager가 자기 School의 exact planning year에서 수행할 수 있다. Planning manager 자신과 ordinary Teacher는 수행할 수 없다.
+- School lifecycle, actual rollover와 system/recovery operation은 별도의 governance 권한을 유지한다.
+- UI 숨김이나 parameter만으로 scope를 넓힐 수 없다.
 
 ## 관련 canonical 문서
 
-- 장기 SchoolYear architecture: [`school_year_architecture.md`](../specs/school_year_architecture.md)
-- 학교 운영 lifecycle과 1:1 teacher assignment: [`school_operations_lifecycle.md`](../specs/school_operations_lifecycle.md)
-- 학교와 교실 경계: [`school_classroom_boundaries.md`](school_classroom_boundaries.md)
-- classroom grade: [`classroom_grade_foundation.md`](../specs/classroom_grade_foundation.md)
+- 역할과 권한: [`roles_and_permissions.md`](roles_and_permissions.md)
+- planning과 manager collaboration: [`planning_year_bootstrap.md`](../specs/planning_year_bootstrap.md)
+- Teacher bulk: [`teacher_bulk_management.md`](../specs/teacher_bulk_management.md)
+- Classroom bulk: [`classroom_bulk_management.md`](../specs/classroom_bulk_management.md)
 - Student lifecycle: [`student_membership_lifecycle.md`](../specs/student_membership_lifecycle.md)
-- 학생 명부: [`student_roster.md`](../specs/student_roster.md)

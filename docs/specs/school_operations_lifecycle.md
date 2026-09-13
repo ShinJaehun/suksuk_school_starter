@@ -2,14 +2,14 @@
 
 ## 목적
 
-학교 공통 starter에서 teacher와 classroom의 운영 lifecycle, 역할별 접근·관리 권한, 일반 운영 영역과 향후 global admin bulk management 영역의 경계를 정의한다. teacher와 classroom의 단일 담당 관계를 명확히 하고 활성 상태를 일상적인 운영 lifecycle로 사용한다.
+학교 공통 starter에서 Teacher와 Classroom의 운영 lifecycle, 역할별 접근·관리 권한, 개별 운영 영역과 구현된 bulk management 영역의 경계를 정의한다.
 
 이 문서의 teacher/School/Classroom 정책은 현재 runtime을 설명한다. Student cutover는 완료됐으며, 문서 안의 student User, `ClassroomMembership.status`와 student membership 설명 전체는 historical pre-cutover baseline이지 현재 runtime source가 아니다. 현재 학생 lifecycle과 소속은 `Student.active`와 `Student.classroom_id`가 canonical source다. 현재 runtime은 [`current_system.md`](../architecture/current_system.md), [`roles_and_permissions.md`](../architecture/roles_and_permissions.md)와 학생 관련 [`student_model_migration.md`](student_model_migration.md), [`student_membership_lifecycle.md`](student_membership_lifecycle.md), [`student_roster.md`](student_roster.md)가 우선한다.
 
 ## 용어와 현재 구조
 
 - global admin은 `User.role == "admin"`인 사용자다.
-- 학교 대표 선생님은 해당 학교의 active SchoolYear에 속하고 `User.role == "teacher"`, `User.school_role == "manager"`인 사용자다.
+- current operational manager와 eligible planning manager는 각각 active/exact planning annual `User.school_role == "manager"`이며 자기 School의 공동 운영자다.
 - 일반 선생님은 `User.role == "teacher"`이고 `User.school_role == "member"`인 사용자다.
 - teacher의 학교는 `User.school_year.school`이다.
 - teacher와 classroom의 현재 담당 관계는 current `HomeroomAssignment`로 표현한다.
@@ -21,15 +21,13 @@
 
 - `/teachers`는 global admin과 학교 대표 선생님이 사용하는 일반 교사 운영 영역이다.
 - `/classrooms`는 global admin, 학교 대표 선생님, 일반 선생님이 각자의 권한 범위에서 사용하는 일반 교실 운영 영역이다.
-- 현재 `/admin/teachers`의 개별 교사 관리 책임은 향후 `/teachers`로 이동한다. 이는 단순 URL alias가 아니라 일반 school operations 영역으로 책임을 옮기는 것이다.
-- 현재 `/classrooms`의 일반 운영 책임은 유지한다.
-- 기존 기능은 이 정책 정의만을 이유로 즉시 삭제하지 않는다. 기능 이동 이후 필요에 따라 navigation 숨김이나 기존 endpoint 정리를 별도로 수행할 수 있다.
+- `/teachers`와 `/classrooms`의 기존 개별 운영 UI는 유지한다.
 
-### global admin bulk management
+### bulk management
 
-- `/admin/teachers`와 `/admin/classrooms`는 global admin 전용 bulk management 영역이다.
-- 학교 대표 선생님과 일반 선생님은 UI 노출 여부와 무관하게 `/admin/*` school operations endpoint에 접근할 수 없다.
-- 실제 bulk UI와 update 처리 정책은 이 spec에서 구현 대상으로 삼지 않는다.
+- `/admin/teachers`와 `/admin/classrooms`는 구현된 bulk management 영역이다.
+- global admin, current operational manager와 eligible planning manager가 허용된 School/SchoolYear context에서 접근한다. Ordinary Teacher는 접근할 수 없다.
+- 상세 계약은 [Teacher bulk management](teacher_bulk_management.md)와 [Classroom bulk management](classroom_bulk_management.md)가 소유한다.
 
 ## 역할별 권한
 
@@ -49,10 +47,12 @@ global admin도 Pundit policy, `policy_scope`와 서버 검증을 우회하지 �
 
 학교 대표 선생님의 모든 권한은 자신의 `User.school_year.school_id` 범위로 제한된다.
 
+Current manager의 기본 context는 active, planning manager의 기본 context는 exact planning이다. 두 manager 모두 자기 School의 active/planning에서 Teacher와 Classroom을 관리하고 archived year를 read-only로 조회한다. Planning Student mutation은 제공하지 않는다.
+
 `/teachers`에서 다음을 할 수 있다.
 
 - 자기 학교 teacher 조회 및 추가
-- 자기 학교에 새 teacher를 생성할 때 최초 `password`와 `password_confirmation` 설정
+- 자기 학교에 새 teacher를 생성하고 temporary credential을 일회성으로 전달
 - 자기 학교 teacher의 이름, 이메일, 성별, avatar 등 현재 starter가 지원하는 일반 profile 수정
 - 자기 학교 일반 선생님(`User.school_role == "member"`)의 활성/비활성 변경
 - 자기 학교 teacher의 단일 담당 교실 배정·해제
@@ -68,7 +68,7 @@ global admin도 Pundit policy, `policy_scope`와 서버 검증을 우회하지 �
 
 manager lifecycle은 manager 수나 다른 active manager 존재 여부와 관계없이 global admin만 관리한다. 일반 profile 편집 권한과 lifecycle·role 변경 권한은 서로 분리한다.
 
-학교 대표 선생님은 active SchoolYear마다 0명 또는 1명이다. canonical source는 `User.school_role == "manager"`이며 `School.manager_id` 같은 중복 pointer를 추가하지 않는다. global admin은 school manager 수에 포함하지 않는다. 초기 설정이나 교체 과정에서 manager가 잠시 없을 수 있지만 두 명 이상이 동시에 manager일 수는 없다. manager 지정·교체·해제는 global admin만 수행한다.
+SchoolYear manager는 없거나 한 명이며 canonical source는 `User.school_role == "manager"`다. Global admin은 모든 SchoolYear에서 지정·교체·해제할 수 있고 current operational manager는 자기 School의 exact planning SchoolYear에서 수행할 수 있다. Planning manager 자신과 ordinary Teacher는 수행할 수 없다.
 
 `/classrooms`에서 다음을 할 수 있다.
 
@@ -83,7 +83,7 @@ manager lifecycle은 manager 수나 다른 active manager 존재 여부와 관�
 ### 일반 선생님
 
 - `/teachers`와 `/admin/*` school operations 영역에 접근할 수 없다.
-- `/classrooms` 접근 범위는 `teacher_id`로 자신에게 배정된 active classroom으로 제한한다.
+- `/classrooms` 접근 범위는 current `HomeroomAssignment`로 자신에게 배정된 active Classroom으로 제한한다.
 - 담당 active classroom이 0개이면 접근 가능한 담당 교실이 없다는 정상 안내 상태를 보여준다.
 - 담당 active classroom이 1개이면 `/classrooms` 목록 대신 해당 `/classrooms/:id`로 바로 진입한다.
 - 담당 active classroom에서는 학생 명부, 학생 정보, 학생 PIN 등 기존 운영 권한을 사용할 수 있다.
@@ -94,14 +94,13 @@ manager lifecycle은 manager 수나 다른 active manager 존재 여부와 관�
 - teacher는 담당 classroom이 없거나 정확히 하나다.
 - classroom은 담당 teacher가 없거나 정확히 한 명이다.
 - 현재 담당 관계의 canonical source of truth는 current `HomeroomAssignment`다.
-- `Classroom`은 teacher `User`를 optional association으로 참조하고 teacher는 최대 하나의 classroom을 가진다. 정확한 Rails association 이름은 구현 시 기존 `User` naming에 맞춘다.
 - HomeroomAssignment의 Classroom/User foreign key와 current row partial unique index로 한 teacher가 여러 classroom을 동시에 담당하지 못하게 한다.
 - current HomeroomAssignment partial uniqueness이므로 한 classroom에 여러 teacher를 배정하지 않는다.
-- 신규 teacher `ClassroomMembership`은 생성하지 않는다. `ClassroomMembership`은 학생의 classroom 소속과 그에 필요한 기존 책임만 유지한다.
+- Student의 현재 소속은 `Student.classroom_id`이며 runtime membership model은 없다.
 
-### 기존 teacher assignment 이전
+### Pre-HomeroomAssignment historical migration baseline
 
-기존 `ClassroomMembership(role: "teacher")` 데이터는 구현 단계에서 `Classroom.teacher_id`로 이전한 뒤 teacher assignment 책임에서 제거한다. 기존 데이터가 teacher와 classroom 양쪽에서 1:1로 호환될 때만 대응하는 `teacher_id`로 이전한다.
+기존 `ClassroomMembership(role: "teacher")` 데이터는 당시 `Classroom.teacher_id`를 거쳐 HomeroomAssignment로 이전했다. 이 절의 source들은 current runtime fallback이 아니다.
 
 한 teacher가 여러 classroom을 담당하거나 한 classroom에 여러 teacher가 연결된 충돌 데이터가 있으면 migration이 임의의 관계를 선택하지 않는다. 구현 전에 실제 데이터를 점검하고 충돌을 명시적으로 정리한 뒤 이전한다. starter의 seed와 spec fixture도 새 invariant에 맞춘다. silent data loss는 허용하지 않는다.
 
@@ -223,11 +222,9 @@ teacher의 grade가 `nil`이면 classroom을 배정할 수 없다. 담당 classr
 - 학교 대표 선생님: 자기 학교
 - 일반 선생님: 접근 불가
 
-기본 기능은 teacher 목록, teacher 추가, 일반 profile 편집과 단일 담당 classroom 배정·해제다. 학교 대표 선생님은 자기 학교의 `User.school_role == "member"` teacher만 활성/비활성 변경할 수 있고, global admin은 member teacher와 manager teacher 모두 활성/비활성 변경할 수 있다. manager role 승격·강등은 기존처럼 global admin 전용이다. global admin에게는 학교 범위 선택을 제공할 수 있지만 학교 대표 선생님에게 다른 학교 선택 UI나 parameter를 제공하지 않는다. 모든 record 조회와 변경은 서버에서 역할별 school scope를 다시 검증한다.
+기본 기능은 Teacher 목록, 추가, 일반 profile 편집과 단일 담당 Classroom 배정·해제다. Current/planning manager는 자기 School의 지원되는 active/planning Teacher operation을 수행한다. Self protection, manager target protection과 manager designation 전용 flow는 유지한다. Global admin에게는 School 범위 선택을 제공하고 manager는 자기 School로 제한한다. 모든 record 조회와 변경은 서버에서 역할별 School scope를 다시 검증한다.
 
-학교 대표 선생님은 자기 학교에 새 teacher를 생성할 때 최초 인증 정보를 설정하기 위해 `password`와 `password_confirmation`을 입력할 수 있다. global admin의 기존 teacher 생성 password 흐름도 유지한다.
-
-기존 teacher를 update할 때 학교 대표 선생님에게 허용되는 속성은 name, email, gender, avatar와 허용된 classroom assignments 등 일반 profile·운영 정보로 제한한다. update strong parameters에는 `password`와 `password_confirmation`을 허용하지 않으며, 일반 profile 수정 권한이 비밀번호 변경 권한으로 확대되어서는 안 된다. 기존 teacher의 비밀번호 변경·초기화는 별도 password reset 정책으로 정의하기 전까지 이 기능의 범위에 포함하지 않는다.
+Teacher 생성과 재발급은 서버가 생성하는 temporary credential, 강제 비밀번호 변경, audit와 일회성 표시 계약을 따른다. Manager가 초기 password를 직접 입력하거나 일반 profile update로 password 또는 `school_role`을 바꾸지 않는다. 상세 보안 계약은 [Planning Year Bootstrap](planning_year_bootstrap.md)과 [Teacher Bulk Management](teacher_bulk_management.md)를 따른다.
 
 ## `/classrooms` 일반 운영 영역
 
@@ -243,15 +240,7 @@ global admin과 학교 대표 선생님은 권한 범위에서 classroom 추가,
 
 ## `/admin` bulk management 경계
 
-향후 `/admin/teachers`와 `/admin/classrooms`는 표 기반 bulk management UX를 참고할 수 있으나 다음 정책을 지킨다.
-
-- global admin only
-- 한 번에 한 학교를 선택해 관리
-- policy 또는 scope 밖 record 수정 금지
-- starter의 단일 teacher assignment와 학생용 classroom membership 모델 유지
-- 다른 서비스의 `login_id`, `class_label`, `school_year` 구현을 그대로 복제하지 않음. 장기 target 자체는 `school_year_architecture.md`에서 독립적으로 정의한다.
-
-bulk update의 atomic transaction, row validation, rollback, dirty tracking은 별도 canonical spec에서 정의한다.
+`/admin/teachers`와 `/admin/classrooms`는 global admin 전용 namespace가 아니다. Global admin은 명시한 School/SchoolYear, 두 manager는 자기 School의 active/exact planning context에서 사용하며 archive는 read-only다. Ordinary Teacher와 다른 School actor는 거부한다. Atomic transaction, scope 재검증과 HomeroomAssignment 규칙은 [Teacher bulk management](teacher_bulk_management.md)와 [Classroom bulk management](classroom_bulk_management.md)가 정의한다.
 
 ## Teacher의 school-context 학년 정책
 
@@ -343,7 +332,7 @@ valid school과 학년이 선택되면 해당 school, 해당 grade와 active 상
 - classroom grade, teacher school·grade와 lifecycle validation이 assignment 불변식을 방어한다.
 - school당 manager 최대 한 명을 model validation과 DB partial unique index로 방어한다.
 - 일반 teacher의 담당 active classroom 진입과 manager/admin lifecycle 관리 UI가 역할별 policy를 따른다.
-- Classroom delete protection은 student membership과 서비스 기록을 보존한다.
+- Classroom delete protection은 Student와 HomeroomAssignment history 및 서비스 기록을 보존한다.
 
 ### Pre-Student-cutover Teacher/Student lifecycle 구현 감사 (2026-09-05)
 
@@ -403,20 +392,20 @@ valid school과 학년이 선택되면 해당 school, 해당 grade와 active 상
 26. assignment 해제와 lifecycle 전환은 서비스 기록, 작성자 정보와 학생 membership을 삭제하지 않는다.
 27. inactive classroom은 일반 선생님의 목록, 자동 진입과 mutation 대상에서 제외되며 manager와 global admin은 권한 범위에서 조회·재활성화할 수 있다.
 28. 일반 선생님의 담당 active classroom이 하나이면 해당 classroom으로 바로 진입하고 없으면 정상 안내 상태를 표시한다.
-29. 학교 대표 선생님은 자기 학교에 새 teacher를 생성할 때 최초 password를 설정할 수 있지만 기존 teacher의 password를 update할 수 없다.
+29. Teacher 생성·재발급은 temporary credential과 audit 계약을 따르며 manager가 password를 직접 입력하지 않는다.
 30. 학교 대표 선생님은 허용된 일반 profile과 ordinary member teacher lifecycle만 관리하며 manager lifecycle·role이나 global admin 권한을 변경할 수 없다.
 31. manager는 active SchoolYear마다 0명 또는 1명이고 두 명 이상의 annual manager를 동시에 저장할 수 없다.
-32. manager 지정·교체·해제와 manager lifecycle 변경은 global admin만 수행한다.
+32. manager 지정·교체·해제는 global admin 또는 current operational manager가 자기 School exact planning context에서 수행하며 planning manager 자신과 ordinary Teacher는 거부한다.
 33. manager의 canonical source는 `User.school_role`이며 `School.manager_id`를 추가하지 않는다.
 34. school manager 후보는 현재 school의 active teacher만 대상으로 하며 이름, 이메일과 현재 단일 담당 classroom 정보로 구별할 수 있다.
 35. school manager 후보의 grade filter는 `User.grade`를 사용하고 미배정은 grade가 `nil`인 상태다.
 36. `/teachers` 목록은 annual school, `User.grade`, 단일 classroom과 상태를 표시하고 없는 학년 또는 학급은 미배정으로 표시한다.
 37. `/classrooms` 목록은 school, 학년, 반, 단일 담당 teacher와 상태를 표시하고 teacher가 없으면 미배정으로 표시한다.
-38. 기존 teacher `ClassroomMembership` 데이터는 1:1 호환 관계만 `Classroom.teacher_id`로 이전한다.
-39. 기존 데이터에 다중 teacher 또는 다중 classroom 충돌이 있으면 migration이 임의 선택하지 않고 명시적 정리 후 이전한다.
+38. Pre-HomeroomAssignment migration 기록은 current assignment source로 해석하지 않는다.
+39. Current runtime은 `Classroom.teacher_id`나 membership fallback 없이 current `HomeroomAssignment`만 사용한다.
 40. teacher와 classroom 후보 UI는 전체 scope 데이터를 무제한으로 사전 loading하거나 숨겨서 rendering하지 않는다.
 41. 후보 검색, filtering과 직접 parameter 조작은 policy scope 또는 authorization 범위를 넓히지 않는다.
-42. `/admin/teachers`와 `/admin/classrooms` school operations 화면은 global admin만 접근할 수 있다.
+42. `/admin/teachers`와 `/admin/classrooms`는 global admin과 자기 School의 current/planning manager가 접근하며 ordinary Teacher는 거부한다.
 43. `Classroom.grade`의 필수 1부터 6 데이터·표시·filter·정렬 정책은 `classroom_grade_foundation.md`를 유지한다.
 
 ## 제약
@@ -424,15 +413,14 @@ valid school과 학년이 선택되면 해당 school, 해당 grade와 active 상
 - 현재 runtime은 Classroom의 SchoolYear와 `class_label` cutover를 반영하며 후속 lifecycle 구조는 별도 spec에서 구현한다.
 - lifecycle 구현은 학생 membership과 과거 서비스 기록을 파괴하지 않아야 한다. classroom lifecycle은 현재 teacher assignment를 보존하며, teacher lifecycle에서 teacher를 비활성화할 때만 현재 assignment를 해제한다.
 - 기존 Pundit 경계를 우회하는 별도 조회나 update 경로를 만들지 않는다.
-- 일반 운영 책임 이동과 bulk management 구현은 단계적으로 진행할 수 있지만 최종 권한 경계는 이 문서를 따른다.
+- bulk management 상세 권한과 transaction은 각 bulk canonical spec을 따른다.
 
 ## Non-goals
 
 - 쑥쑥교실투표 코드 직접 복사
-- `/admin` bulk management 실제 구현
 - teacher 또는 classroom 물리 삭제 기능 확대
 - teacher의 복수 classroom 담당 또는 classroom의 복수 teacher 담당
-- HomeroomAssignment와 StudentEnrollment 도입
+- StudentEnrollment 도입
 - 교사 비밀번호 관리 또는 초기화 정책
 - global admin 역할 편집
 - manager 승격·강등 UI 변경

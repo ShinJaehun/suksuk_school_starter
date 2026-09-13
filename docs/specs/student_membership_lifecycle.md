@@ -26,7 +26,8 @@ Classroom에 직접 속한 Student의 active/inactive lifecycle, 권한과 sessi
 
 - 비활성화/복구와 관리 mutation은 현재 Classroom의 학생 관리 권한을 따른다.
 - global admin은 운영 가능한 Classroom을 관리할 수 있다.
-- ordinary teacher는 담당 Classroom만 관리하며 manager도 실제 담당 teacher가 아니면 학생 운영 권한을 얻지 않는다.
+- current operational manager와 eligible planning manager는 자기 School의 active operational Classroom에서 학생을 관리한다.
+- ordinary teacher는 current `HomeroomAssignment`로 배정된 active Classroom만 관리한다.
 - Student는 자신의 self-service와 PIN 변경만 가능하며 다른 Student나 관리 endpoint에 접근할 수 없다.
 - URL Classroom과 `Student.classroom_id`가 다르면 scope를 넓힐 수 없다.
 
@@ -48,7 +49,9 @@ Classroom에 직접 속한 Student의 active/inactive lifecycle, 권한과 sessi
 
 ## 학년도 경계
 
-- planning SchoolYear에서는 명단 준비가 가능하지만 학생 login은 금지한다.
+- Student create/update/deactivate/reactivate는 active operational Classroom에서만 가능하다.
+- planning SchoolYear에는 Student 명단 준비 UI/API가 없으며 Student를 생성·수정·이동·삭제하지 않는다. Planning Student preparation은 future work다.
+- planning과 archived SchoolYear에서는 학생 login을 허용하지 않는다.
 - archived SchoolYear는 Student.active를 바꾸지 않고 하위 자료와 당시 상태를 read-only로 보존한다.
 - 다른 학년도에는 새 Student를 만들며 동일 학생 identity 연결이나 StudentEnrollment를 추가하지 않는다.
 

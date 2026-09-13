@@ -1,100 +1,42 @@
 # Roles And Permissions
 
-이 문서의 role, policy와 권한 매트릭스는 현재 runtime을 설명한다. 아직 구현하지 않은 planning bootstrap과 archived read-only 세부 권한은 [`school_year_architecture.md`](../specs/school_year_architecture.md)를 따른다.
+이 문서는 현재 runtime의 role × School scope × SchoolYear context 권한을 요약한다. Pundit policy, scope와 domain validation이 최종 경계이며 `/admin` namespace 자체는 권한 source가 아니다.
 
-## 권한 구조 요약
+## Actor
 
-- 서버측 권한 판단의 중심은 Pundit policy와 `policy_scope`다.
-- 모든 비-`index` 액션은 `verify_authorized`, `index` 액션은 `verify_policy_scoped` 대상이다.
-- `User.role`은 `admin`, `teacher`를 유지하며 학생은 별도 `Student` 모델이다.
-- teacher의 학교는 `User.school_year.school`, 학교별 권한은 `User.school_role`의 `member`, `manager`로 표현한다.
-- 학생은 `Student.classroom_id`로 Classroom에 직접 속한다.
-- canonical teacher assignment는 current `HomeroomAssignment`이며 teacher와 classroom은 각각 current 상대를 최대 하나만 가진다.
-- UI 숨김은 편의 수단일 뿐이며 policy, scope와 controller/domain validation이 최종 권한 경계다.
+- **Global admin**: 모든 School의 운영 resource를 관리한다. SchoolYear governance와 system operation은 각 operation의 별도 정책을 따른다.
+- **Current operational manager**: 현재 유효한 active annual manager로서 자기 School의 active/planning 운영과 archive read를 담당한다. 기본 context는 active다.
+- **Eligible planning manager**: exact immediate planning year의 유효한 manager로서 자기 School의 active/planning 운영과 archive read를 담당한다. 기본 context는 planning이다.
+- **Ordinary Teacher**: Teacher 관리 권한은 없으며 current `HomeroomAssignment`로 배정된 active Classroom 범위만 운영한다.
+- **Student**: `Student.classroom_id`의 active Classroom에서 허용된 자기 session 기능만 사용한다.
 
-teacher assignment는 `HomeroomAssignment`를 사용하며 current assignment는 `ended_on IS NULL`이다.
+Manager의 School operation authority는 global admin role 부여가 아니다. 다른 School, generic system administration, School lifecycle, actual rollover와 recovery authority는 확대되지 않는다.
 
-## 역할 설명
+## 현재 권한 매트릭스
 
-### Global admin
+| 리소스/액션 | Global admin | Current manager | Planning manager | Ordinary Teacher | Student |
+|---|---|---|---|---|---|
+| `/teachers` | 모든 School, 허용 context | 자기 School active/planning, archive read | 자기 School active/planning, archive read | 거부 | 거부 |
+| `/admin/teachers` bulk | 모든 School active/planning, archive read | 자기 School active/planning, archive read | 자기 School active/planning, archive read | 거부 | 거부 |
+| `/classrooms` | 모든 School | 자기 School active/planning, archive read | 자기 School active/planning, archive read | 담당 active Classroom | 자기 active Classroom의 허용 기능 |
+| `/admin/classrooms` bulk | 모든 School active/planning, archive read | 자기 School active/planning, archive read | 자기 School active/planning, archive read | 거부 | 거부 |
+| active Student/member operation | 모든 School | 자기 School 전체 | 자기 School 전체 | 담당 Classroom | 관리 operation 거부 |
+| planning preparation | Teacher/Classroom/담임 | 자기 School Teacher/Classroom/담임 | 자기 School Teacher/Classroom/담임 | 거부 | 거부 |
+| planning Student roster mutation | 미지원 | 미지원 | 미지원 | 미지원 | 미지원 |
+| archived Teacher/Classroom/Student | read-only | 자기 School read-only | 자기 School read-only | 기존 historical scope | 허용된 조회만 |
+| planning manager 지정·교체·해제 | 가능 | 자기 School exact planning에서 가능 | 거부 | 거부 | 거부 |
+| actual rollover | 가능 | 거부 | 거부 | 거부 | 거부 |
 
-- 모든 학교의 관리 가능한 teacher와 classroom을 조회·관리한다.
-- 학교 manager를 지정·교체·해제한다.
-- `/admin/*` school operations 영역에 접근한다.
-- school, grade, lifecycle과 cardinality 불변식을 우회할 수 없다.
+## 중요한 보호 경계
 
-### 학교 manager
+- 두 manager의 운영 authority는 `annual_school`이 같은 resource에만 적용한다. malformed, cross-School 또는 unauthorized SchoolYear는 fallback 없이 거부한다.
+- Planning manager designation은 일반 Teacher profile/bulk mutation으로 우회할 수 없다.
+- Archived context의 mutation은 모든 manager에게 금지한다.
+- Active Student mutation은 active School, active SchoolYear, active Classroom과 Student lifecycle 조건을 모두 요구한다.
+- Planning은 Teacher, Classroom과 HomeroomAssignment 준비만 지원하고 Student를 생성·수정·이동·삭제하지 않는다.
+- Teacher와 Classroom 담임 관계는 current `HomeroomAssignment`만 사용한다.
+- Ordinary Teacher의 권한은 같은 School 전체가 아니라 담당 active Classroom에 한정된다.
 
-- 자기 학교의 teacher, classroom과 student 운영만 관리한다.
-- 자기 학교 ordinary teacher의 profile, lifecycle과 단일 담당 classroom을 관리한다.
-- 다른 학교, global admin 권한, manager role과 manager lifecycle을 변경할 수 없다.
-- 현재 runtime에서는 manager라는 이유만으로 미담당 classroom의 학생 운영 권한을 얻지 않는다. 장기 target의 school-wide manager authority와 구분한다.
+## Governance와 operation 구분
 
-학교별 manager는 active SchoolYear에서 `User.school_role == "manager"`인 teacher로 없거나 한 명만 둔다. `School.manager_id`는 추가하지 않으며 manager 지정·교체·해제는 global admin만 수행한다.
-
-### 일반 teacher
-
-- `/teachers`와 `/admin/*` school operations 영역에 접근할 수 없다.
-- current `HomeroomAssignment`로 자신에게 배정된 active classroom 하나에서 학생 운영 기능을 사용한다.
-- 담당 classroom이 없으면 정상 안내 상태를 본다.
-- 같은 학교라는 이유만으로 미담당 classroom에 접근할 수 없다.
-
-### Student
-
-- active `Student`가 직접 속한 자기 classroom과 자기 정보에만 접근한다.
-- 교실 구조, 다른 사용자 정보와 운영 관리 기능을 변경할 수 없다.
-- PIN/token 로그인과 짧은 student session 정책을 따른다.
-
-## 주요 권한 매트릭스
-
-다음 표는 현재 구현 기준이다.
-
-| 리소스/액션 | global admin | manager | 일반 teacher | student |
-|---|---|---|---|---|
-| `/teachers` | 각 학교의 active SchoolYear | 자기 active SchoolYear | 불가 | 불가 |
-| `/classrooms` 목록·상세 | 모든 학교 | 자기 학교 | 담당 active classroom | 자기 active Student classroom |
-| classroom 생성·구조 수정 | 가능 | 자기 학교 | 불가 | 불가 |
-| teacher profile 관리 | 가능 | 자기 학교 허용 범위 | 불가 | 불가 |
-| teacher lifecycle | member·manager | 자기 학교 member만 | 불가 | 불가 |
-| teacher 단일 classroom 배정 | 가능 | 자기 학교 | 불가 | 불가 |
-| 학생 명부·PIN 관리 | 가능 | 실제 담당 teacher인 경우 | 실제 담당 classroom | 불가 |
-| manager 지정·교체·해제 | 가능 | 불가 | 불가 | 불가 |
-| `/admin/*` school operations | 가능 | 불가 | 불가 | 불가 |
-
-## Teacher와 Classroom 경계
-
-- teacher는 정확히 하나의 `SchoolYear`에 속한다.
-- `User.grade`는 `nil` 또는 정수 1부터 6이다.
-- teacher는 classroom 없이 학교와 학년만 가질 수 있다.
-- classroom은 담당 teacher 없이 존재할 수 있다.
-- 신규 assignment 시 teacher와 classroom은 같은 school과 grade야 하며 둘 다 active여야 한다.
-- teacher와 classroom은 각각 다른 현재 assignment가 없어야 한다.
-- teacher 비활성화 시 현재 assignment를 해제하고 재활성화 때 자동 복원하지 않는다.
-- classroom 비활성화 시 assignment와 Student row를 보존하고 운영만 잠근다.
-- classroom grade 변경으로 담당 teacher와 불일치가 생기면 저장을 거부한다.
-
-담당 변경은 기존 current HomeroomAssignment 종료와 새 assignment 생성을 한 transaction에서 처리한다. 관계를 해제해도 Student나 과거 서비스 기록을 삭제하지 않는다.
-
-Teacher의 학교 소속과 권한은 annual User에만 저장하며 별도 membership fallback을 두지 않는다.
-
-## Student 경계
-
-- Student는 정확히 하나의 Classroom에 직접 속한다.
-- inactive Student는 row와 과거 기록을 보존한다.
-- 학생 조회·변경은 URL classroom, `Student.classroom_id`와 actor의 classroom 권한을 함께 확인한다.
-- 다른 classroom이나 허용 scope 밖 Student id를 제출해도 변경하지 않는다.
-- student hard delete보다 `Student.active` lifecycle을 우선한다.
-
-## 현재 assignment 구조
-
-```text
-HomeroomAssignment(classroom_id, teacher_id, started_on, ended_on)
-current: ended_on IS NULL
-partial unique: current classroom_id / current teacher_id
-```
-
-## 문서 유지 원칙
-
-- 실제 endpoint와 policy를 기준으로 현재 구현과 canonical 문서가 일치하는지 확인한다.
-- service-specific domain이 starter에서 제거되면 그 policy와 route 설명도 활성 문서에서 제거한다.
-- 새 액션은 UI 노출뿐 아니라 policy, scope와 server validation을 함께 검토한다.
+Current/planning manager의 공동 운영 authority는 SchoolYear lifecycle predicate의 의미를 바꾸지 않는다. `current_operational_manager?`, planning manager eligibility와 preparation authority는 각자의 의미를 유지한다. Actual rollover, recovery/reversal, global system operation과 manager 자신의 designation은 operation별 policy가 별도로 통제한다.
