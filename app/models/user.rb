@@ -112,6 +112,12 @@ class User < ApplicationRecord
     end
   end
 
+  def school_operations_manager_for?(school)
+    return false unless annual_school == school
+
+    current_operational_manager? || planning_manager_session_eligible?
+  end
+
   def annual_school
     school_year&.school
   end

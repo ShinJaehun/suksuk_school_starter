@@ -6,7 +6,9 @@ class ClassroomPolicy < ApplicationPolicy
                           .merge(School.active)
       return active_scope if admin?
 
-      return active_scope.where(school_year_id: user.school_year_id) if teacher? && user.school_manager?
+      if user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
+        return active_scope.where(school_years: { school_id: user.annual_school.id })
+      end
 
       # Teachers can see only their classrooms
       if teacher?
@@ -29,13 +31,9 @@ class ClassroomPolicy < ApplicationPolicy
     def resolve
       return scope.all if admin?
 
-      if user&.current_operational_manager?
+      if user&.school_operations_manager_for?(user.annual_school)
         return scope.joins(:school_year)
                     .where(school_years: { school_id: user.annual_school.id })
-      end
-
-      if user&.planning_manager_session_eligible?
-        return scope.where(school_year_id: user.school_year_id)
       end
 
       super
@@ -49,13 +47,14 @@ class ClassroomPolicy < ApplicationPolicy
   def show?
     return true if admin?
     return archived_school_manager? if record.school_year&.archived?
+    return planning_structure_allowed? if record.school_year&.planning?
     return false unless active_school?
 
     school_manager_of?(record) || member_of?(record)
   end
 
   def create?
-    admin? || school_manager? || user&.planning_manager_session_eligible?
+    admin? || school_operations_manager?
   end
 
   def new?
@@ -71,13 +70,13 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def destroy?
-    return !!admin? if active_school?
+    return !!(admin? || school_manager_of?(record)) if active_school?
 
     planning_structure_allowed?
   end
 
   def manage_members?
-    active_school? && active_classroom? && (admin? || teacher_of?(record))
+    active_school? && active_classroom? && (admin? || school_manager_of?(record) || teacher_of?(record))
   end
 
   def manage_structure?
@@ -87,7 +86,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def manage_operations?
-    active_school? && active_classroom? && !!(admin? || teacher_of?(record))
+    active_school? && active_classroom? && !!(admin? || school_manager_of?(record) || teacher_of?(record))
   end
 
   def deactivate?
@@ -102,6 +101,7 @@ class ClassroomPolicy < ApplicationPolicy
     return true if archived_readable?
     return false unless active_school?
     return true if admin?
+    return true if school_manager_of?(record)
     return teacher_of?(record) if teacher?
     return student_of?(record) if student?
 
@@ -126,12 +126,12 @@ class ClassroomPolicy < ApplicationPolicy
     record.respond_to?(:active?) && !record.active?
   end
 
-  def school_manager?
-    user.is_a?(User) && user.current_operational_manager?
+  def school_operations_manager?
+    user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
   end
 
   def school_manager_of?(classroom)
-    school_manager? && classroom.school_year_id == user.school_year_id
+    user.is_a?(User) && user.school_operations_manager_for?(classroom.school_year.school)
   end
 
   def planning_structure_allowed?
@@ -149,7 +149,7 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def archived_school_manager?
-    school_manager? && user.annual_school == record.school_year.school
+    user.is_a?(User) && user.school_operations_manager_for?(record.school_year.school)
   end
 
   def teacher_of?(classroom)

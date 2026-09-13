@@ -54,20 +54,21 @@ RSpec.describe Teachers::ManagementContext do
     expect(archived_context).not_to be_creatable
   end
 
-  it 'limits a planning manager to its own planning year and uses it as the default' do
+  it 'gives a planning manager every own-School context while keeping planning as the default' do
     school = create(:school)
     active_year = create(:school_year, :active, school: school, year: 2026)
     planning_year = create(:school_year, school: school, year: 2027)
+    archived_year = create(:school_year, :archived, school: school, year: 2025)
     planning_manager = annual_manager(school: school, school_year: planning_year)
     management_context = context(planning_manager)
 
-    expect(management_context.school_years).to contain_exactly(planning_year)
+    expect(management_context.school_years).to contain_exactly(active_year, planning_year, archived_year)
     expect(management_context.selected_school_year).to eq(planning_year)
     expect(management_context).to be_mutable
     expect(management_context).to be_creatable
-    expect do
-      context(planning_manager, school_year_id: active_year.id).selected_school_year
-    end.to raise_error(ActiveRecord::RecordNotFound)
+    expect(context(planning_manager, school_year_id: active_year.id).selected_school_year).to eq(active_year)
+    expect(context(planning_manager, school_year_id: archived_year.id)).to be_read_only
+    expect(context(planning_manager, school_year_id: active_year.id).creation_school_year).to eq(active_year)
   end
 
   it 'resolves active and planning creation contexts but rejects archived creation' do
@@ -102,6 +103,15 @@ RSpec.describe Teachers::ManagementContext do
     end.to raise_error(ActiveRecord::RecordNotFound)
     expect do
       context(manager, school_id: other_school.id).selected_school
+    end.to raise_error(ActiveRecord::RecordNotFound)
+
+    planning_year = create(:school_year, school: school, year: active_year.year + 1)
+    planning_manager = annual_manager(school: school, school_year: planning_year)
+    expect do
+      context(planning_manager, school_year_id: 'invalid').selected_school_year
+    end.to raise_error(ActiveRecord::RecordNotFound)
+    expect do
+      context(planning_manager, school_id: other_school.id, school_year_id: active_year.id).selected_school_year
     end.to raise_error(ActiveRecord::RecordNotFound)
   end
 

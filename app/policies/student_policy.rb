@@ -1,7 +1,8 @@
 class StudentPolicy < ApplicationPolicy
   def show?
     return true if admin?
-    return true if teacher? && archived_school_manager?
+    return true if archived_school_manager?
+    return true if school_operations_manager? && operational_classroom?(record.classroom)
     return teacher_of_classroom? if teacher?
 
     student? && user == record && eligible_student?(record)
@@ -13,6 +14,7 @@ class StudentPolicy < ApplicationPolicy
 
   def manage?
     return true if admin? && operational_classroom?(record.classroom)
+    return true if school_operations_manager? && operational_classroom?(record.classroom)
 
     teacher? && teacher_of_classroom?
   end
@@ -34,7 +36,11 @@ class StudentPolicy < ApplicationPolicy
 
   def archived_school_manager?
     classroom = record.classroom
-    user.current_operational_manager? && classroom.school_year.archived? &&
-      user.annual_school == classroom.school_year.school
+    classroom.school_year.archived? && user.is_a?(User) &&
+      user.school_operations_manager_for?(classroom.school_year.school)
+  end
+
+  def school_operations_manager?
+    user.is_a?(User) && user.school_operations_manager_for?(record.classroom.school_year.school)
   end
 end

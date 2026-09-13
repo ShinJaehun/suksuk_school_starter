@@ -32,6 +32,37 @@ RSpec.describe StudentPolicy do
     expect(described_class.new(create(:user, :admin), student).manage?).to eq(true)
   end
 
+  it "allows current and planning managers to manage an active Student in their School" do
+    active_year = classroom.school_year
+    current_manager = create(:user, :teacher, school_year: active_year,
+      login_id: "current-manager", school_role: "manager")
+    planning_manager = create(:user, :teacher,
+      school_year: create(:school_year, school: school, year: active_year.year + 1),
+      login_id: "planning-manager", school_role: "manager")
+
+    [current_manager, planning_manager].each do |manager|
+      policy = described_class.new(manager, student)
+      expect(policy.show?).to eq(true)
+      expect(policy.manage?).to eq(true)
+    end
+  end
+
+  it "limits manager Student authority to its own School and keeps archives read-only" do
+    active_year = classroom.school_year
+    planning_manager = create(:user, :teacher,
+      school_year: create(:school_year, school: school, year: active_year.year + 1),
+      login_id: "planning-manager", school_role: "manager")
+    other_student = create(:student, classroom: create(:classroom))
+    archived_classroom = create(:classroom,
+      school_year: create(:school_year, :archived, school: school, year: active_year.year - 1))
+    archived_student = create(:student, classroom: archived_classroom)
+
+    expect(described_class.new(planning_manager, other_student).show?).to eq(false)
+    expect(described_class.new(planning_manager, other_student).manage?).to eq(false)
+    expect(described_class.new(planning_manager, archived_student).show?).to eq(true)
+    expect(described_class.new(planning_manager, archived_student).manage?).to eq(false)
+  end
+
   it "rejects a guest" do
     policy = described_class.new(nil, student)
 

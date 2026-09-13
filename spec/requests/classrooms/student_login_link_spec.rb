@@ -109,14 +109,16 @@ RSpec.describe 'Classroom student login link', type: :request do
     expect(response.body).not_to include(classroom.student_login_token)
   end
 
-  it 'does not allow an unassigned school manager to access token management' do
+  it 'allows an unassigned school manager to access token management' do
     teacher.update!(school_role: 'manager')
     sign_in teacher
 
     get student_login_info_classroom_path(classroom)
 
-    expect(response).to redirect_to(root_path)
-    expect(response.body).not_to include(classroom.student_login_token)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(
+      public_student_login_url(student_login_token: classroom.student_login_token)
+    )
   end
 
   it 'does not show student login controls on the members page' do
@@ -276,14 +278,14 @@ RSpec.describe 'Classroom student login link', type: :request do
     expect(classroom.reload.student_login_token).to eq(old_token)
   end
 
-  it 'does not allow an unassigned school manager to regenerate the token' do
+  it 'allows an unassigned school manager to regenerate the token' do
     teacher.update!(school_role: 'manager')
     old_token = classroom.student_login_token
     sign_in teacher
 
     patch regenerate_student_login_token_classroom_path(classroom)
 
-    expect(response).to redirect_to(root_path)
-    expect(classroom.reload.student_login_token).to eq(old_token)
+    expect(response).to redirect_to(classroom_path(classroom))
+    expect(classroom.reload.student_login_token).not_to eq(old_token)
   end
 end

@@ -73,6 +73,10 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class.new(manager, planning_member).update_profile?).to eq(true)
     expect(described_class.new(manager, planning_manager).update_profile?).to eq(true)
     expect(described_class.new(planning_manager, planning_member).update_profile?).to eq(true)
+    expect(described_class.new(planning_manager, member).update_profile?).to eq(true)
+    expect(
+      described_class.new(planning_manager, User.new(role: :teacher, school_year: manager.school_year)).create?
+    ).to eq(true)
     expect(described_class.new(member, planning_member).update_profile?).to eq(false)
   end
 
@@ -103,7 +107,7 @@ RSpec.describe TeacherManagementPolicy do
     expect(described_class.new(manager, inactive_planning_member).reissue_temporary_password?).to eq(false)
     expect(described_class.new(planning_manager, planning_member).reissue_temporary_password?).to eq(true)
     expect(described_class.new(planning_manager, planning_manager).reissue_temporary_password?).to eq(false)
-    expect(described_class.new(planning_manager, member).reissue_temporary_password?).to eq(false)
+    expect(described_class.new(planning_manager, member).reissue_temporary_password?).to eq(true)
     expect(described_class.new(manager, other_manager).reissue_temporary_password?).to eq(false)
     expect(described_class.new(manager, outside_teacher).reissue_temporary_password?).to eq(false)
   end
@@ -144,7 +148,7 @@ RSpec.describe TeacherManagementPolicy do
     )
   end
 
-  it 'allows an eligible active planning manager to use its planning Teacher scope' do
+  it 'allows an eligible active planning manager to use its active and planning Teacher scope' do
     active_year = manager.school_year
     planning_manager = create(
       :user,
@@ -160,7 +164,14 @@ RSpec.describe TeacherManagementPolicy do
 
     expect(described_class.new(planning_manager, User).index?).to eq(true)
     expect(described_class.new(planning_manager, User).access?).to eq(true)
-    expect(described_class::Scope.new(planning_manager, User).resolve).to contain_exactly(planning_manager)
+    other_school_teacher = outside_teacher
+    scope = described_class::Scope.new(planning_manager, User).resolve
+    expect(scope).to contain_exactly(
+      manager,
+      member,
+      planning_manager
+    )
+    expect(scope).not_to include(other_school_teacher)
   end
 
   it 'rejects inactive and archived manager actors' do

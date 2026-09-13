@@ -1031,7 +1031,7 @@ RSpec.describe 'Classroom students', type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it 'rejects an unassigned school manager' do
+    it 'allows an unassigned school manager in its School' do
       manager = create(:user, :teacher, :active_annual_teacher,
                        annual_school: past_classroom.school_year.school,
                        annual_school_role: 'manager')
@@ -1040,7 +1040,7 @@ RSpec.describe 'Classroom students', type: :request do
 
       get classroom_student_path(past_classroom, past_student)
 
-      expect(response).to redirect_to(root_path)
+      expect(response).to have_http_status(:ok)
     end
   end
 

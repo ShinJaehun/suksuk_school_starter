@@ -50,7 +50,7 @@ RSpec.describe 'Classroom deletion', type: :request do
     expect(flash[:notice]).to be_nil
   end
 
-  it 'rejects direct deletion by an unassigned school manager' do
+  it 'allows direct deletion of an empty active Classroom by its school manager' do
     manager = create(:user, :teacher, :active_annual_teacher,
       annual_school: school,
       annual_school_role: "manager")
@@ -59,14 +59,13 @@ RSpec.describe 'Classroom deletion', type: :request do
 
     expect do
       delete classroom_path(classroom)
-    end.not_to change(Classroom, :count)
+    end.to change(Classroom, :count).by(-1)
 
-    expect(response).to redirect_to(root_path)
-    expect(response).to have_http_status(:found)
-    expect(flash[:notice]).to be_nil
+    expect(response).to redirect_to(classrooms_path)
+    expect(response).to have_http_status(:see_other)
   end
 
-  it 'rejects direct deletion by a manager who is also an assigned teacher' do
+  it 'preserves a manager Classroom when homeroom history exists' do
     manager = create(:user, :teacher, :active_annual_teacher,
       annual_school: school,
       annual_school_role: "manager")
@@ -78,9 +77,10 @@ RSpec.describe 'Classroom deletion', type: :request do
       delete classroom_path(classroom)
     end.not_to change(Classroom, :count)
 
-    expect(response).to redirect_to(root_path)
-    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to(edit_classroom_path(classroom))
+    expect(response).to have_http_status(:see_other)
     expect(classroom.reload.teacher).to eq(manager)
+    expect(flash[:alert]).to be_present
   end
 
   it 'preserves an admin classroom when a Student exists' do
@@ -130,7 +130,7 @@ RSpec.describe 'Classroom deletion', type: :request do
     expect(teacher_delete_links).to be_empty
   end
 
-  it 'hides the delete area from school managers, including assigned managers' do
+  it 'shows the delete area to school managers on their active Classroom edit page' do
     manager = create(:user, :teacher, :active_annual_teacher,
       annual_school: school,
       annual_school_role: "manager")
@@ -145,7 +145,7 @@ RSpec.describe 'Classroom deletion', type: :request do
       %(a[href="#{classroom_path(classroom)}"][data-turbo-method="delete"])
     )
 
-    expect(response.body).not_to include(I18n.t('classrooms.edit.delete_description'))
-    expect(classroom_delete_links).to be_empty
+    expect(response.body).to include(I18n.t('classrooms.edit.delete_description'))
+    expect(classroom_delete_links).not_to be_empty
   end
 end

@@ -39,6 +39,24 @@ RSpec.describe User, type: :model do
       manager.school_year.update!(status: :archived)
       expect(manager).not_to be_current_operational_manager
     end
+
+    it "recognizes current and eligible planning managers only for their own School operations" do
+      school = create(:school)
+      active_year = create(:school_year, :active, school: school, year: 2026)
+      planning_year = create(:school_year, school: school, year: 2027)
+      current_manager = create(:user, :teacher, school_year: active_year,
+        login_id: "current-manager", school_role: "manager")
+      planning_manager = create(:user, :teacher, school_year: planning_year,
+        login_id: "planning-manager", school_role: "manager")
+      other_school = create(:school)
+
+      expect(current_manager.school_operations_manager_for?(school)).to eq(true)
+      expect(planning_manager.school_operations_manager_for?(school)).to eq(true)
+      expect(planning_manager.school_operations_manager_for?(other_school)).to eq(false)
+
+      planning_manager.update!(school_role: "member")
+      expect(planning_manager.school_operations_manager_for?(school)).to eq(false)
+    end
   end
 
   describe "role-specific email requirements" do

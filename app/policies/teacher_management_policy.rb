@@ -3,8 +3,7 @@ class TeacherManagementPolicy < ApplicationPolicy
     def resolve
       return scope.teacher if user&.admin?
 
-      return scope.none unless user&.current_operational_manager? || user&.planning_manager_session_eligible?
-      return scope.teacher.where(school_year_id: user.school_year_id) if user.planning_manager_session_eligible?
+      return scope.none unless user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
 
       scope.teacher
            .joins(:school_year)
@@ -16,14 +15,11 @@ class TeacherManagementPolicy < ApplicationPolicy
     def resolve
       return scope.teacher.joins(:school_year).merge(SchoolYear.active) if user&.admin?
 
-      return scope.none unless user&.current_operational_manager? || user&.planning_manager_session_eligible?
-
-      if user.planning_manager_session_eligible?
-        return scope.teacher.where(school_year_id: user.school_year_id)
-      end
+      return scope.none unless user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
 
       scope.teacher
-           .where(school_year_id: user.school_year_id)
+           .joins(:school_year)
+           .where(school_years: { school_id: user.annual_school.id, status: %i[active planning] })
     end
   end
 
@@ -32,7 +28,7 @@ class TeacherManagementPolicy < ApplicationPolicy
   end
 
   def access?
-    user&.admin? || school_manager? || user&.planning_manager_session_eligible?
+    user&.admin? || school_operations_manager?
   end
 
   def create?
@@ -47,7 +43,7 @@ class TeacherManagementPolicy < ApplicationPolicy
     if school_year.active?
       return true if user&.admin?
 
-      return school_year == user.school_year
+      return school_operations_manager_for?(school_year)
     end
 
     return false unless school_year.school&.active?
@@ -74,7 +70,7 @@ class TeacherManagementPolicy < ApplicationPolicy
 
     return true if user&.admin?
 
-    school_manager? && record.school_year_id == user.school_year_id
+    school_operations_manager_for?(school_year)
   end
 
   def reissue_temporary_password?
@@ -87,7 +83,7 @@ class TeacherManagementPolicy < ApplicationPolicy
     return true if user&.admin?
 
     if school_year.active?
-      return school_manager? && record.school_member? && school_year == user.school_year
+      return school_operations_manager_for?(school_year)
     end
 
     return false unless planning_operator_for?(school_year)
@@ -110,8 +106,12 @@ class TeacherManagementPolicy < ApplicationPolicy
 
   private
 
-  def school_manager?
-    user&.current_operational_manager?
+  def school_operations_manager?
+    user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
+  end
+
+  def school_operations_manager_for?(school_year)
+    user.is_a?(User) && user.school_operations_manager_for?(school_year.school)
   end
 
   def planning_operator_for?(school_year)

@@ -47,11 +47,11 @@ class UserPolicy < ApplicationPolicy
         user.planning_preparation_operator_for?(record.school_year)
     end
 
+    return false unless record.school_year&.active?
     return true if user&.admin?
-    return false unless user&.active_teacher?
+    return false unless user.is_a?(User)
     return false if user.id == record.id
-    return false unless user.school_manager? && record.school_member?
 
-    user.school_year_id == record.school_year_id
+    user.school_operations_manager_for?(record.annual_school)
   end
 end

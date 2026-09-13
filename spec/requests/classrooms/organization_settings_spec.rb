@@ -47,10 +47,10 @@ RSpec.describe 'Classroom organization settings', type: :request do
     expect(response.body).to include(classroom_path(assigned_classroom), classroom_path(unassigned_classroom))
     expect(response.body).to include(
       classroom_members_path(assigned_classroom),
+      classroom_members_path(unassigned_classroom),
       edit_classroom_path(assigned_classroom),
       edit_classroom_path(unassigned_classroom)
     )
-    expect(response.body).not_to include(classroom_members_path(unassigned_classroom))
     expect(response.body).to include(school_path(school))
     expect(response.body).not_to include('다른 학교 학급')
     expect(response.body).to include(teachers_path)
@@ -339,8 +339,8 @@ RSpec.describe 'Classroom organization settings', type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).to include('교실 설정')
     expect(response.body).not_to include('오늘의 칭찬왕')
-    expect(response.body).not_to include('학생 로그인')
-    expect(response.body).not_to include(classroom_members_path(classroom))
+    expect(response.body).to include('학생 로그인')
+    expect(response.body).to include(classroom_members_path(classroom))
   end
 
   it "rejects a manager showing another school's classroom" do
@@ -683,16 +683,17 @@ RSpec.describe 'Classroom organization settings', type: :request do
                                                 school_year: school.school_years.active.first)
   end
 
-  it 'prevents a manager from deleting a classroom in their school' do
+  it 'allows a manager to delete an empty active classroom in their school' do
     manager = create_annual_manager(school: school)
     classroom = create(:classroom, annual_school: school)
     sign_in manager
 
     expect do
       delete classroom_path(classroom)
-    end.not_to change(Classroom, :count)
+    end.to change(Classroom, :count).by(-1)
 
-    expect(response).to redirect_to(root_path)
+    expect(response).to redirect_to(classrooms_path)
+    expect(response).to have_http_status(:see_other)
   end
 
   it 'prevents a manager from moving a classroom to another school' do

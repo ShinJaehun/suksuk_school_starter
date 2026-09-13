@@ -30,7 +30,7 @@ class Teachers::ManagementContext
     return @school_years = SchoolYear.none unless school
     return @school_years = school.school_years.order(year: :desc) if actor.admin?
 
-    @school_years = if actor.current_operational_manager?
+    @school_years = if actor.school_operations_manager_for?(school)
                       manager_school_years(school)
                     else
                       SchoolYear.where(id: actor.school_year_id)
@@ -125,9 +125,11 @@ class Teachers::ManagementContext
   end
 
   def manager_school_years(school)
-    years = school.school_years.archived.to_a << actor.school_year
+    active_year = school.active_school_year
     planning_year = school.planning_school_year
-    years << planning_year if planning_year&.year == actor.school_year.year + 1
+    years = school.school_years.archived.to_a
+    years << active_year if active_year
+    years << planning_year if active_year && planning_year&.year == active_year.year + 1
     SchoolYear.where(id: years.map(&:id)).order(year: :desc)
   end
 

@@ -6,6 +6,8 @@
 
 이 단계는 foundation 계약만 확정한다. 구체 route, controller, policy, service와 UI는 승인된 후속 구현 단위에서 정하며, 이 문서 승인만으로 bulk bootstrap, rollover 또는 archived login을 한 번에 구현하지 않는다.
 
+이 문서의 초기 manager School operation authority와 context matrix는 후속 canonical contract인 [`planning_year_bootstrap.md`](planning_year_bootstrap.md)가 현재 정책을 supersede한다. 특히 active planning manager는 자기 School의 active operation, exact planning preparation과 archived read-only stewardship authority를 가지지만 `current_operational_manager?`의 의미, SchoolYear governance, actual rollover 또는 global-admin-only authority를 얻지 않는다.
+
 장기 정책은 [`school_year_architecture.md`](school_year_architecture.md), 현재 runtime은 [`current_system.md`](../architecture/current_system.md)와 [`roles_and_permissions.md`](../architecture/roles_and_permissions.md)를 함께 따른다.
 
 ## 현재 runtime 전제

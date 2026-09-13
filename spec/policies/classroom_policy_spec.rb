@@ -111,19 +111,26 @@ RSpec.describe ClassroomPolicy do
       expect(described_class.new(manager, classroom).show?).to eq(false)
     end
 
-    it 'allows the current manager to read only their School archive' do
+    it 'allows current and planning managers to read only their School archive' do
       school = create(:school)
+      active_year = create(:school_year, :active, school: school, year: 2026)
       archived_year = create(:school_year, :archived, school: school, year: 2025)
       archived_classroom = create(:classroom, school_year: archived_year)
-      manager = annual_teacher(school: school, school_role: 'manager')
+      manager = create(:user, :teacher, school_year: active_year,
+        login_id: 'current-manager', school_role: 'manager')
+      planning_manager = create(:user, :teacher,
+        school_year: create(:school_year, school: school, year: 2027),
+        login_id: 'planning-manager', school_role: 'manager')
       other_manager = annual_teacher(school: create(:school), school_role: 'manager')
 
-      policy = described_class.new(manager, archived_classroom)
-      expect(policy.show?).to eq(true)
-      expect(policy.view_student_data?).to eq(true)
-      expect(policy.update?).to eq(false)
-      expect(policy.destroy?).to eq(false)
-      expect(policy.manage_members?).to eq(false)
+      [manager, planning_manager].each do |actor|
+        policy = described_class.new(actor, archived_classroom)
+        expect(policy.show?).to eq(true)
+        expect(policy.view_student_data?).to eq(true)
+        expect(policy.update?).to eq(false)
+        expect(policy.destroy?).to eq(false)
+        expect(policy.manage_members?).to eq(false)
+      end
       expect(described_class.new(other_manager, archived_classroom).show?).to eq(false)
     end
   end
@@ -147,10 +154,10 @@ RSpec.describe ClassroomPolicy do
       expect(described_class.new(teacher, classroom).view_student_data?).to eq(false)
     end
 
-    it "rejects an unassigned school manager" do
+    it "permits an unassigned school manager" do
       manager = annual_teacher(school: school, school_role: "manager")
 
-      expect(described_class.new(manager, classroom).view_student_data?).to eq(false)
+      expect(described_class.new(manager, classroom).view_student_data?).to eq(true)
     end
 
     it "permits a manager who is also assigned to the classroom" do
@@ -180,12 +187,13 @@ RSpec.describe ClassroomPolicy do
       annual_teacher(school: school, school_role: "manager", grade: classroom.grade)
     end
 
-    it "keeps settings update access for an unassigned manager but blocks teacher operations" do
+    it "allows an unassigned manager every active Classroom operation" do
       policy = described_class.new(manager, classroom)
 
       expect(policy.update?).to eq(true)
-      expect(policy.manage_members?).to eq(false)
-      expect(policy.destroy?).to eq(false)
+      expect(policy.manage_operations?).to eq(true)
+      expect(policy.manage_members?).to eq(true)
+      expect(policy.destroy?).to eq(true)
     end
 
     it "combines manager access with existing classroom teacher permissions" do
@@ -194,13 +202,13 @@ RSpec.describe ClassroomPolicy do
 
       expect(policy.update?).to eq(true)
       expect(policy.manage_members?).to eq(true)
-      expect(policy.destroy?).to eq(false)
+      expect(policy.destroy?).to eq(true)
     end
 
   end
 
   describe '#destroy?' do
-    it 'allows authorized planning deletion without widening active manager deletion' do
+    it 'allows authorized planning and active Classroom deletion' do
       school = create(:school)
       active_classroom = create(:classroom, annual_school: school)
       manager = annual_teacher(school: school, school_role: 'manager')
@@ -209,7 +217,7 @@ RSpec.describe ClassroomPolicy do
 
       expect(described_class.new(create(:user, :admin), planning_classroom).destroy?).to eq(true)
       expect(described_class.new(manager, planning_classroom).destroy?).to eq(true)
-      expect(described_class.new(manager, active_classroom).destroy?).to eq(false)
+      expect(described_class.new(manager, active_classroom).destroy?).to eq(true)
     end
   end
 
@@ -232,14 +240,14 @@ RSpec.describe ClassroomPolicy do
       expect(policy.manage_members?).to eq(true)
     end
 
-    it "allows an unassigned school manager to manage only structure" do
+    it "allows an unassigned school manager to manage the active Classroom" do
       manager = annual_teacher(school: school, school_role: "manager")
       policy = described_class.new(manager, classroom)
 
       expect(policy.manage_structure?).to eq(true)
-      expect(policy.manage_operations?).to eq(false)
+      expect(policy.manage_operations?).to eq(true)
       expect(policy.update?).to eq(true)
-      expect(policy.manage_members?).to eq(false)
+      expect(policy.manage_members?).to eq(true)
     end
 
     it "combines structure and teacher permissions for an assigned school manager" do
@@ -278,15 +286,19 @@ RSpec.describe ClassroomPolicy do
       end
     end
 
-    it "rejects a manager role outside the current operational SchoolYear" do
-      planning_year = create(:school_year, school: school, year: 2027)
+    it "allows an eligible planning manager to manage its School active Classroom" do
+      planning_year = create(:school_year, school: school, year: classroom.school_year.year + 1)
       planning_manager = create(:user, :teacher, school_year: planning_year,
         login_id: "planning-manager", school_role: "manager")
+      other_classroom = create(:classroom, annual_school: create(:school))
       policy = described_class.new(planning_manager, classroom)
+      scope = described_class::Scope.new(planning_manager, Classroom).resolve
 
-      expect(policy.show?).to eq(false)
-      expect(policy.manage_structure?).to eq(false)
-      expect(described_class::Scope.new(planning_manager, Classroom).resolve).to be_empty
+      expect(policy.show?).to eq(true)
+      expect(policy.manage_structure?).to eq(true)
+      expect(policy.manage_members?).to eq(true)
+      expect(scope).to contain_exactly(classroom)
+      expect(scope).not_to include(other_classroom)
     end
 
     it "allows only planning structure mutation while keeping lifecycle and member operations closed" do
@@ -295,7 +307,10 @@ RSpec.describe ClassroomPolicy do
       admin = create(:user, :admin)
       manager = annual_teacher(school: school, school_role: "manager")
 
-      [admin, manager].each do |actor|
+      planning_manager = create(:user, :teacher, school_year: planning_year,
+        login_id: "planning-manager", school_role: "manager")
+
+      [admin, manager, planning_manager].each do |actor|
         policy = described_class.new(actor, planning_classroom)
 
         expect(policy.manage_structure?).to eq(true)
@@ -387,16 +402,16 @@ RSpec.describe ClassroomPolicy do
       expect(described_class.new(teacher, classroom).destroy?).to eq(false)
     end
 
-    it "rejects an unassigned school manager" do
+    it "permits an unassigned school manager" do
       manager = annual_teacher(school: school, school_role: "manager")
 
-      expect(described_class.new(manager, classroom).destroy?).to eq(false)
+      expect(described_class.new(manager, classroom).destroy?).to eq(true)
     end
 
-    it "rejects a school manager who is also an assigned teacher" do
+    it "permits a school manager who is also an assigned teacher" do
       manager = annual_teacher(school: school, school_role: "manager", grade: classroom.grade)
       assign_teacher(classroom, manager)
-      expect(described_class.new(manager, classroom).destroy?).to eq(false)
+      expect(described_class.new(manager, classroom).destroy?).to eq(true)
     end
 
     it "rejects a student" do

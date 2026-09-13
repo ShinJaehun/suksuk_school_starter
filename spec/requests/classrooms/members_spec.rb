@@ -252,13 +252,15 @@ RSpec.describe 'Classroom members', type: :request do
     expect(response).to redirect_to(root_path)
   end
 
-  it 'rejects a manager who is not assigned to the classroom' do
+  it 'allows a manager who is not assigned to the classroom' do
     teacher.update!(school_role: 'manager')
+    student = managed_student(name: '활성 학생')
     sign_in teacher
 
     get classroom_members_path(classroom)
 
-    expect(response).to redirect_to(root_path)
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(student.name)
   end
 
   it 'allows a manager assigned as the classroom teacher to manage members' do
@@ -782,7 +784,7 @@ RSpec.describe 'Classroom members', type: :request do
       expect(student.reload.name).to eq('유지')
     end
 
-    it 'rejects a manager who is not assigned to the classroom' do
+    it 'allows a manager who is not assigned to the classroom' do
       teacher.update!(school_role: 'manager')
       student = managed_student(name: '유지')
       membership = student
@@ -794,8 +796,8 @@ RSpec.describe 'Classroom members', type: :request do
         }
       }
 
-      expect(response).to redirect_to(root_path)
-      expect(student.reload.name).to eq('유지')
+      expect(response).to redirect_to(classroom_members_path(classroom))
+      expect(student.reload.name).to eq('변경 시도')
     end
 
     it 'fails when a membership outside the classroom is submitted' do

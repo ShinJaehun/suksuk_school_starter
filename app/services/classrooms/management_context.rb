@@ -29,9 +29,7 @@ class Classrooms::ManagementContext
     school = selected_school
     return @school_years = SchoolYear.none unless school
     return @school_years = school.school_years.order(year: :desc) if actor.admin?
-    return @school_years = SchoolYear.where(id: actor.school_year_id) if actor.planning_manager_session_eligible?
-
-    @school_years = if actor.current_operational_manager?
+    @school_years = if actor.school_operations_manager_for?(school)
                       manager_school_years(school)
                     else
                       SchoolYear.where(id: actor.school_year_id)
@@ -132,18 +130,21 @@ class Classrooms::ManagementContext
   end
 
   def manager_school_years(school)
-    years = school.school_years.archived.to_a << actor.school_year
+    active_year = school.active_school_year
     planning_year = school.planning_school_year
-    years << planning_year if planning_year&.year == actor.school_year.year + 1
+    years = school.school_years.archived.to_a
+    years << active_year if active_year
+    years << planning_year if active_year && planning_year&.year == active_year.year + 1
     SchoolYear.where(id: years.map(&:id)).order(year: :desc)
   end
 
   def creation_school_years
     return creation_school.school_years.where(status: %i[active planning]) if actor.admin?
 
-    years = [actor.school_year]
+    active_year = creation_school.active_school_year
     planning_year = creation_school.planning_school_year
-    years << planning_year if planning_year&.year == actor.school_year.year + 1
+    years = [active_year]
+    years << planning_year if active_year && planning_year&.year == active_year.year + 1
     SchoolYear.where(id: years.compact.map(&:id))
   end
 

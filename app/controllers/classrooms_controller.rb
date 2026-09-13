@@ -52,6 +52,8 @@ class ClassroomsController < ApplicationController
         Set.new
       elsif current_user.admin?
         classroom_ids.to_set
+      elsif current_user_school_manager?
+        classroom_ids.to_set
       elsif current_user.current_operational_teacher?
         assigned_classroom_ids
       else
@@ -150,7 +152,7 @@ class ClassroomsController < ApplicationController
 
     if school_year.archived? &&
        !current_user.admin? &&
-       !current_user.current_operational_manager?
+       !current_user.school_operations_manager_for?(school)
       raise ActiveRecord::RecordNotFound
     end
 
@@ -159,8 +161,6 @@ class ClassroomsController < ApplicationController
 
   def set_destroy_classroom
     unless params[:school_id].present? || params[:school_year_id].present?
-      raise ActiveRecord::RecordNotFound if current_user.planning_manager_session_eligible?
-
       @classroom = policy_scope(Classroom).find(params[:id])
       return
     end
