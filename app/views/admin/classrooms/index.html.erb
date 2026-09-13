@@ -6,24 +6,27 @@
     <% end %>
   </header>
 
-  <div class="flex flex-wrap gap-3">
+  <div class="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+       data-management-filter-panel>
     <% if current_user.admin? %>
-      <%= form_with url: admin_classrooms_path, method: :get, class: "flex items-end gap-2" do %>
+      <%= form_with url: admin_classrooms_path, method: :get, class: "flex flex-wrap items-end gap-2" do %>
         <div>
-          <%= label_tag :school_id, t("filters.school.label"), class: "block text-xs font-medium text-stone-600" %>
-          <%= select_tag :school_id, options_for_select([[t("filters.school.all"), ""]] + @filter_schools.map { |school| [school.name, school.id] }, @selected_school&.id), class: "mt-1 rounded-md border-stone-300" %>
+          <%= label_tag :school_id, t("filters.school.label"), class: "block text-xs font-semibold text-slate-500" %>
+          <%= select_tag :school_id, options_for_select([[t("filters.school.all"), ""]] + @filter_schools.map { |school| [school.name, school.id] }, @selected_school&.id), class: "mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" %>
         </div>
-        <%= submit_tag t("filters.apply"), class: "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium" %>
+        <%= submit_tag t("filters.apply"), class: "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
       <% end %>
     <% end %>
     <% if @selected_school %>
-      <%= form_with url: admin_classrooms_path, method: :get, class: "flex items-end gap-2" do %>
+      <%= form_with url: admin_classrooms_path, method: :get, class: "flex flex-wrap items-end gap-2" do %>
         <%= hidden_field_tag :school_id, @selected_school.id %>
         <div>
-          <%= label_tag :school_year_id, t("classrooms.index.school_year"), class: "block text-xs font-medium text-stone-600" %>
-          <%= select_tag :school_year_id, options_for_select(@school_year_options.map { |year| [t("classrooms.index.school_year_option", year: year.year, status: t("school_years.status.#{year.status}")), year.id] }, @selected_school_year&.id), class: "mt-1 rounded-md border-stone-300" %>
+          <%= label_tag :school_year_id, t("classrooms.index.school_year"), class: "block text-xs font-semibold text-slate-500" %>
+          <%= select_tag :school_year_id,
+                grouped_school_year_options(@school_year_options, @selected_school_year&.id),
+                class: "mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" %>
         </div>
-        <%= submit_tag t("filters.apply"), class: "rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium" %>
+        <%= submit_tag t("filters.apply"), class: "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
       <% end %>
     <% end %>
   </div>

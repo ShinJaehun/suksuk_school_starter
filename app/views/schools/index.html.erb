@@ -9,7 +9,9 @@
   </div>
 
   <% if current_user.admin? %>
-    <%= form_with url: schools_path, method: :get, class: "mt-4 flex items-end gap-2" do %>
+    <%= form_with url: schools_path, method: :get,
+          class: "mt-4 flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-4",
+          data: { management_filter_panel: true } do %>
       <div>
         <%= label_tag :status, t("school_status.filter_label"), class: "block text-xs font-semibold text-slate-500" %>
         <%= select_tag :status,
@@ -18,9 +20,9 @@
                 [t("school_status.inactive"), "inactive"],
                 [t("school_status.all"), "all"]
               ], @school_status),
-              class: "mt-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" %>
+              class: "mt-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" %>
       </div>
-      <%= submit_tag t("filters.apply"), class: "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700" %>
+      <%= submit_tag t("filters.apply"), class: "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
     <% end %>
   <% end %>
 

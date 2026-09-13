@@ -1,5 +1,3 @@
-require "securerandom"
-
 module AnnualTeacherUsers
   class TemporaryCredential
     Result = Data.define(:teacher, :temporary_password, :event) do
@@ -19,7 +17,7 @@ module AnnualTeacherUsers
     end
 
     def call
-      temporary_password = SecureRandom.alphanumeric(20)
+      temporary_password = Teachers::TemporaryPassword.generate(login_id: teacher.login_id)
       event = nil
 
       User.transaction do

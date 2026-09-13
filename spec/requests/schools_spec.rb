@@ -30,6 +30,7 @@ RSpec.describe 'School workspaces', type: :request do
     expect(response.body).not_to include('translation missing')
 
     document = Nokogiri::HTML(response.body)
+    expect(document.at_css('[data-management-filter-panel]')).to be_present
     school_card = document.at_xpath("//h2[normalize-space()='#{school.name}']/ancestor::article[1]")
     other_school_card = document.at_xpath("//h2[normalize-space()='#{other_school.name}']/ancestor::article[1]")
 

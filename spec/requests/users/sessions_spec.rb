@@ -91,6 +91,38 @@ RSpec.describe 'Users::Sessions', type: :request do
     expect(response.body).not_to include(destroy_student_session_path)
   end
 
+  it 'returns an active teacher to their own School teacher login after explicit logout' do
+    sign_in teacher
+
+    delete destroy_user_session_path
+
+    expect(response).to redirect_to(school_teacher_login_path(teacher_school))
+  end
+
+  it 'returns an eligible planning manager to their own School teacher login after explicit logout' do
+    planning_year = create(:school_year, school: teacher_school, year: teacher_school_year.year + 1)
+    planning_manager = create(
+      :user,
+      :teacher,
+      school_year: planning_year,
+      school_role: 'manager',
+      login_id: 'planning-logout'
+    )
+    sign_in planning_manager
+
+    delete destroy_user_session_path
+
+    expect(response).to redirect_to(school_teacher_login_path(teacher_school))
+  end
+
+  it 'keeps the existing admin logout flow' do
+    sign_in admin
+
+    delete destroy_user_session_path
+
+    expect(response).to redirect_to(root_path)
+  end
+
   it 'signs an admin in and redirects directly to schools index' do
     post user_session_path, params: {
       user: {

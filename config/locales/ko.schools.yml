@@ -66,6 +66,11 @@ ko:
       status_title: "학교 상태"
       status_description: "학교 운영을 중단하거나 다시 시작할 수 있습니다."
       back_to_school: "학교 운영 정보로 돌아가기"
+      planning:
+        title: "다음 학년도 준비"
+        existing: "%{year}학년도를 준비하고 있습니다."
+        next: "현재 %{current_year}학년도를 운영 중이며, 다음 %{next_year}학년도를 준비합니다."
+        confirm: "%{year}학년도 준비를 시작할까요? 준비 학년도가 생성되면 선생님, 교실과 담임 구성을 시작할 수 있습니다."
       update:
         success: "학교 이름을 수정했습니다."
 
@@ -74,6 +79,12 @@ ko:
       planning: "준비 중"
       active: "운영 중"
       archived: "지난 학년도"
+    selector:
+      active: "운영"
+      planning: "준비"
+      archived: "지난 학년도"
+      current_option: "%{year}학년도 · %{status}"
+      archived_option: "%{year}학년도"
     planning:
       title: "다음 학년도 준비"
       existing: "%{year}학년도 준비 중"

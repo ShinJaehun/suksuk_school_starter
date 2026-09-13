@@ -191,6 +191,7 @@ class TeachersController < ApplicationController
     @teacher_creation_school = teacher_management_context.selected_school
     @teacher_creation_school_year = teacher_management_context.creation_school_year
     @planning_teacher_creation = @teacher_creation_school_year&.planning?
+    @teacher_creation_management_source = 'admin' if params[:management_source] == 'admin'
   end
 
   def teacher_index_scope
@@ -415,7 +416,9 @@ class TeachersController < ApplicationController
   def teacher_creation_return_path
     return unless @teacher_creation_context_explicit && @teacher_creation_school_year
 
-    teachers_path(
+    path_helper = @teacher_creation_management_source == 'admin' ? :admin_teachers_path : :teachers_path
+    public_send(
+      path_helper,
       school_id: @teacher_creation_school_year.school_id,
       school_year_id: @teacher_creation_school_year.id
     )

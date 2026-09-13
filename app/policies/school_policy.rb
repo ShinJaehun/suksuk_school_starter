@@ -50,6 +50,12 @@ class SchoolPolicy < ApplicationPolicy
     admin?
   end
 
+  def settings?
+    return true if admin?
+
+    record.active? && school_manager?
+  end
+
   def deactivate?
     admin? && record.active?
   end

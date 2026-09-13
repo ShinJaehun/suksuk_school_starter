@@ -42,7 +42,7 @@ class SchoolsController < ApplicationController
   end
 
   def edit
-    authorize @school, :update?
+    authorize @school, :settings?
     prepare_school_settings
   end
 

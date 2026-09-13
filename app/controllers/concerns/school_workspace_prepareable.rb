@@ -34,8 +34,22 @@ module SchoolWorkspacePrepareable
   end
 
   def prepare_school_settings
-    @managers = active_school_teachers.where(school_role: "manager").order(:id)
-    @manager_candidates = active_school_teachers.active.order(:school_role, :id)
+    if policy(@school).update?
+      @managers = active_school_teachers.where(school_role: "manager").order(:id)
+      @manager_candidates = active_school_teachers.active.order(:school_role, :id)
+    end
+
+    @planning_school_year = @school.planning_school_year
+    @next_planning_year = active_school_year&.year&.+(1)
+    planning_record = @planning_school_year || @school.school_years.build(
+      status: :planning,
+      year: @next_planning_year
+    )
+    @can_start_planning_school_year = @planning_school_year.nil? &&
+      @next_planning_year.present? &&
+      policy(planning_record).create?
+    @can_manage_planning_school_year = @planning_school_year.present? &&
+      policy(@planning_school_year).prepare?
   end
 
   def active_school_teachers

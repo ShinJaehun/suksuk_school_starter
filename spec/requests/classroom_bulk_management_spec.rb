@@ -30,6 +30,7 @@ RSpec.describe "Classroom bulk management", type: :request do
     expect(document.css("a").map(&:text)).to include("전체", "1학년", "2학년", "3학년", "4학년", "5학년", "6학년")
     expect(document.at_css("form#classroom_bulk_update")).to be_present
     expect(document.at_css(%(a[href^="#{bulk_setup_admin_classrooms_path}"]))).to be_present
+    expect(document.at_css('[data-management-filter-panel]')).to be_present
   end
 
   it "keeps current and planning manager default contexts" do

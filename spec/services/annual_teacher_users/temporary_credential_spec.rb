@@ -23,6 +23,29 @@ RSpec.describe AnnualTeacherUsers::TemporaryCredential do
     expect(result.event).to have_attributes(actor_user: actor, teacher_user: teacher)
   end
 
+  it "uses the shared temporary password generator for initial issue and reissue" do
+    actor = create(:user, :admin)
+    teacher = annual_teacher(login_id: "shared-generator")
+    allow(Teachers::TemporaryPassword).to receive(:generate)
+      .with(login_id: teacher.login_id)
+      .and_return("ABCDEFGH", "JKLMNPQR")
+
+    issued = described_class.call(
+      teacher:,
+      actor:,
+      action: :temporary_password_issued
+    )
+    reissued = described_class.call(
+      teacher:,
+      actor:,
+      action: :temporary_password_reissued
+    )
+
+    expect(issued.temporary_password).to eq("ABCDEFGH")
+    expect(reissued.temporary_password).to eq("JKLMNPQR")
+    expect(Teachers::TemporaryPassword).to have_received(:generate).twice
+  end
+
   it "replaces the old password and records a reissue" do
     teacher = annual_teacher(password: "old-password")
 

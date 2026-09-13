@@ -50,8 +50,8 @@ RSpec.describe 'Teacher operations', type: :request do
     sign_in manager
 
     get teachers_path
-    expect(response.body).to include(own_teacher.email)
-    expect(response.body).not_to include(other_teacher.email)
+    expect(response.body).to include(own_teacher.login_id)
+    expect(response.body).not_to include(other_teacher.login_id)
 
     get edit_teacher_path(other_teacher)
     expect(response).to have_http_status(:not_found)
@@ -78,8 +78,8 @@ RSpec.describe 'Teacher operations', type: :request do
     sign_in admin
 
     get teachers_path
-    expect(response.body).to include(active_teacher.email, other_active_teacher.email)
-    expect(response.body).not_to include(planning_teacher.email, archived_teacher.email)
+    expect(response.body).to include(active_teacher.login_id, other_active_teacher.login_id)
+    expect(response.body).not_to include(planning_teacher.login_id, archived_teacher.login_id)
 
     [planning_teacher, archived_teacher].each do |teacher|
       get edit_teacher_path(teacher)
@@ -116,12 +116,16 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(response.body).to include(active_teacher.name)
     expect(response.body).not_to include(planning_teacher.name, archived_teacher.name)
     expect(response.body).to include(I18n.t('admin.teachers.index.add_teacher'))
+    expect(Nokogiri::HTML(response.body).at_css('article.border-amber-300')).to be_nil
 
     get teachers_path, params: { school_id: school.id, school_year_id: planning_year.id }
     expect(response.body).to include(planning_teacher.name, '준비 중')
     expect(response.body).not_to include(active_teacher.name, archived_teacher.name)
     expect(response.body).to include(I18n.t('admin.teachers.index.add_teacher'))
     document = Nokogiri::HTML(response.body)
+    planning_row = document.at_css('article.border-amber-300')
+    expect(planning_row).to be_present
+    expect(planning_row.text).to include(I18n.t('school_years.status.planning'))
     expect(
       document.at_css(
         %(a[href="#{edit_teacher_path(
@@ -133,10 +137,15 @@ RSpec.describe 'Teacher operations', type: :request do
     ).to be_present
 
     get teachers_path, params: { school_id: school.id, school_year_id: archived_year.id }
-    expect(response.body).to include(archived_teacher.name, '지난 학년도')
+    expect(response.body).to include(
+      archived_teacher.name,
+      archived_teacher.login_id,
+      '지난 학년도'
+    )
     expect(response.body).not_to include(active_teacher.name, planning_teacher.name)
     expect(response.body).to include(I18n.t('admin.teachers.index.context_read_only'))
     expect(response.body).not_to include(edit_teacher_path(archived_teacher))
+    expect(Nokogiri::HTML(response.body).at_css('article.border-amber-300')).to be_nil
   end
 
   it 'lets a current manager read active, immediate planning, and archived contexts in their School' do
@@ -233,8 +242,9 @@ RSpec.describe 'Teacher operations', type: :request do
 
     get teachers_path, params: { school_id: school.id }
 
-    expect(response.body).to include(school_teacher.email)
-    expect(response.body).not_to include(other_teacher.email)
+    expect(response.body).to include(school_teacher.login_id)
+    expect(response.body).not_to include(other_teacher.login_id)
+    expect(Nokogiri::HTML(response.body).at_css('[data-management-filter-panel]')).to be_present
   end
 
   it 'filters teachers by active, inactive, and all status' do
@@ -244,15 +254,15 @@ RSpec.describe 'Teacher operations', type: :request do
     sign_in create(:user, :admin)
 
     get teachers_path
-    expect(response.body).to include(active_teacher.email)
-    expect(response.body).not_to include(inactive_teacher.email)
+    expect(response.body).to include(active_teacher.login_id)
+    expect(response.body).not_to include(inactive_teacher.login_id)
 
     get teachers_path, params: { status: 'inactive' }
-    expect(response.body).to include(inactive_teacher.email)
-    expect(response.body).not_to include(active_teacher.email)
+    expect(response.body).to include(inactive_teacher.login_id)
+    expect(response.body).not_to include(active_teacher.login_id)
 
     get teachers_path, params: { status: 'all' }
-    expect(response.body).to include(active_teacher.email, inactive_teacher.email)
+    expect(response.body).to include(active_teacher.login_id, inactive_teacher.login_id)
   end
 
   it 'renders one grade select and one classroom select without plural assignment inputs' do
@@ -581,6 +591,8 @@ RSpec.describe 'Teacher operations', type: :request do
     teacher_form = document.at_css("form[action='#{teacher_path(teacher)}']")
     expect(teacher_form).to be_present
     expect(teacher_form['data-turbo']).to be_nil
+    expect(teacher_form.at_css("input[name='user[login_id]']")).to be_nil
+    expect(teacher_form.text).to include(teacher.login_id)
     expect(document.at_css('select[name="membership_grade"] option[value="5"][selected]')).to be_present
     expect(document.at_css(%(select[name="classroom_id"] option[value="#{classroom.id}"][selected]))).to be_present
   end
@@ -792,15 +804,15 @@ RSpec.describe 'Teacher operations', type: :request do
     sign_in create(:user, :admin)
 
     get teachers_path
-    expect(response.body).to include(active_teacher.email)
-    expect(response.body).not_to include(inactive_teacher.email)
+    expect(response.body).to include(active_teacher.login_id)
+    expect(response.body).not_to include(inactive_teacher.login_id)
 
     get teachers_path, params: { status: 'inactive' }
-    expect(response.body).to include(inactive_teacher.email)
-    expect(response.body).not_to include(active_teacher.email)
+    expect(response.body).to include(inactive_teacher.login_id)
+    expect(response.body).not_to include(active_teacher.login_id)
 
     get teachers_path, params: { status: 'all' }
-    expect(response.body).to include(active_teacher.email, inactive_teacher.email)
+    expect(response.body).to include(active_teacher.login_id, inactive_teacher.login_id)
   end
 
   it 'renders one grade select and one classroom select without plural assignment inputs' do

@@ -27,7 +27,23 @@
               <% assignment_locked = teacher.assigned_classroom&.inactive? %>
               <tr id="<%= dom_id(teacher, :bulk_edit_row) %>" class="<%= 'bg-stone-50 text-stone-400' unless teacher.active? %>" data-teacher-bulk-target="row">
                 <td class="w-14 p-3 align-middle"><%= check_box_tag "teacher_ids[]", teacher.id, false, form: "teacher_selection_operation", aria: { label: t("admin.teachers.bulk.select_teacher", name: teacher.name) }, data: { teacher_bulk_target: "selection", grade_eligible: teacher.active? && teacher.assigned_classroom.nil?, action: "change->teacher-bulk#updateSelection" } %></td>
-                <td class="p-3 align-middle"><%= hidden_field_tag "teachers[rows][#{index}][id]", teacher.id, disabled: !teacher.active? %><%= text_field_tag "teachers[rows][#{index}][name]", value.call(:name), class: "w-36 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400", required: true, disabled: !teacher.active?, data: { action: "input->teacher-bulk#track" } %></td>
+                <td class="p-3 align-middle">
+                  <%= hidden_field_tag "teachers[rows][#{index}][id]", teacher.id, disabled: !teacher.active? %>
+                  <div class="flex items-center gap-2">
+                    <%= user_avatar_image(
+                          teacher,
+                          size: 64,
+                          class: "h-8 w-8 shrink-0 rounded-lg object-cover",
+                          alt: "#{display_name(teacher)} avatar"
+                        ) %>
+                    <%= text_field_tag "teachers[rows][#{index}][name]",
+                          value.call(:name),
+                          class: "w-36 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400",
+                          required: true,
+                          disabled: !teacher.active?,
+                          data: { action: "input->teacher-bulk#track" } %>
+                  </div>
+                </td>
                 <td class="p-3 align-middle"><%= text_field_tag "teachers[rows][#{index}][login_id]", value.call(:login_id), class: "w-36 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-400", required: true, disabled: !teacher.active?, data: { action: "input->teacher-bulk#track" } %></td>
                 <td class="p-3 align-middle">
                   <%= hidden_field_tag "teachers[rows][#{index}][grade]", value.call(:grade) if teacher.active? && assignment_locked %>
@@ -72,7 +88,7 @@
       </div>
     </div>
     <div class="ml-auto flex items-center gap-2">
-      <%= link_to t("admin.teachers.index.add_teacher"), new_teacher_path(@bulk_context_params), class: "rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100", data: { turbo_frame: "_top" } %>
+      <%= link_to t("admin.teachers.index.add_teacher"), new_teacher_path(@bulk_context_params.merge(management_source: "admin")), class: "rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100", data: { turbo_frame: "_top" } %>
       <%= link_to t("admin.teachers.bulk.add_many"), bulk_setup_admin_teachers_path(@bulk_context_params.merge(grade: @grade == "all" ? nil : @grade)), class: "rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100", data: { turbo_frame: "_top" } %>
     </div>
   <% end %>

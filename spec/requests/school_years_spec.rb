@@ -9,21 +9,29 @@ RSpec.describe 'Planning SchoolYears', type: :request do
            annual_school: school, annual_school_role: 'manager')
   end
 
-  it 'lets a global admin create the server-resolved next year from the school overview' do
+  it 'lets a global admin create the server-resolved next year from School settings' do
     sign_in admin
 
     get school_path(school)
-    expect(response.body).to include('2027학년도 준비 시작')
+    expect(response.body).not_to include('2027학년도 준비 시작')
+
+    get edit_school_path(school)
+    document = Nokogiri::HTML(response.body)
+    start_form = document.at_css(%(form[action="#{school_school_years_path(school)}"]))
+    expect(start_form).to be_present
+    expect(start_form['data-turbo-confirm']).to eq(
+      I18n.t('schools.settings.planning.confirm', year: 2027)
+    )
     expect(response.body).not_to include('type="number"')
 
     post school_school_years_path(school), params: { school_year: { year: 2035 } }
 
     planning_year = school.school_years.planning.sole
     expect(planning_year.year).to eq(2027)
-    expect(response).to redirect_to(school_path(school))
+    expect(response).to redirect_to(school_planning_path(school))
     follow_redirect!
     expect(response).to have_http_status(:ok)
-    expect(response.body).to include('2027학년도 준비 중')
+    expect(response.body).to include('2027학년도 · 준비 중')
     expect(response.body).not_to include('2027학년도 준비 시작')
   end
 
@@ -32,13 +40,13 @@ RSpec.describe 'Planning SchoolYears', type: :request do
     create(:school_year, :active, school: other_school, year: 2026)
     sign_in manager
 
-    get school_path(school)
+    get edit_school_path(school)
     document = Nokogiri::HTML(response.body)
     expect(response.body).to include(I18n.t('school_years.planning.start', year: 2027))
     expect(document.at_css(%(form[action="#{school_school_years_path(school)}"]))).to be_present
 
     post school_school_years_path(school)
-    expect(response).to redirect_to(school_path(school))
+    expect(response).to redirect_to(school_planning_path(school))
     expect(school.school_years.planning.sole.year).to eq(2027)
 
     post school_school_years_path(other_school)
@@ -61,7 +69,7 @@ RSpec.describe 'Planning SchoolYears', type: :request do
     sign_in admin
 
     post school_school_years_path(school_without_active_year)
-    expect(response).to redirect_to(school_path(school_without_active_year))
+    expect(response).to redirect_to(edit_school_path(school_without_active_year))
     expect(school_without_active_year.school_years.planning).to be_empty
   end
 
@@ -80,7 +88,7 @@ RSpec.describe 'Planning SchoolYears', type: :request do
     sign_in admin
     post school_school_years_path(school)
 
-    expect(response).to redirect_to(school_path(school))
+    expect(response).to redirect_to(edit_school_path(school))
     expect(school.school_years.planning).to contain_exactly(existing)
     expect(active_year.reload).to be_active
   end
@@ -93,6 +101,17 @@ RSpec.describe 'Planning SchoolYears', type: :request do
 
     expect(response.body).to include('2027학년도 준비 중')
     expect(response.body).not_to include('2027학년도 준비 시작')
+  end
+
+  it 'hides the planning section on School show before planning exists' do
+    sign_in admin
+
+    get school_path(school)
+
+    expect(response.body).not_to include(
+      I18n.t('school_years.planning.title'),
+      school_school_years_path(school)
+    )
   end
 
   it 'shows planning preparation counts and future entry labels on the school overview' do

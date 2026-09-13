@@ -38,7 +38,7 @@ RSpec.describe 'School overview', type: :request do
     expect(overview.at_css(%(a[href="#{new_teacher_path}"]))).to be_nil
   end
 
-  it 'hides school settings from the school manager while showing the manager name' do
+  it 'links the school manager to planning-only School settings' do
     school_manager = manager
     sign_in school_manager
 
@@ -47,7 +47,7 @@ RSpec.describe 'School overview', type: :request do
     overview = Nokogiri::HTML(response.body).at_css('turbo-frame#school_overview')
     expect(response).to have_http_status(:ok)
     expect(overview.text).to include(school.name, school_manager.name, '교실 목록으로')
-    expect(overview.at_css(%(a[href="#{edit_school_path(school)}"]))).to be_nil
+    expect(overview.at_css(%(a[href="#{edit_school_path(school)}"]))).to be_present
   end
 
   it 'hides school settings from a member teacher while showing manager names' do

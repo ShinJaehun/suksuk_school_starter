@@ -10,28 +10,34 @@
   </header>
 
   <div class="space-y-5">
-    <%= render "settings_content" %>
+    <% if policy(@school).update? %>
+      <%= render "settings_content" %>
 
-    <section class="rounded-xl border border-rose-200 bg-rose-50/40 p-5">
-      <h2 class="text-base font-bold text-rose-900"><%= t("schools.settings.status_title") %></h2>
-      <p class="mt-1 text-sm text-rose-700"><%= t("schools.settings.status_description") %></p>
-      <% if @school.errors[:base].any? %>
-        <p class="mt-3 text-sm font-semibold text-rose-700"><%= @school.errors.full_messages_for(:base).to_sentence %></p>
-      <% end %>
-      <div class="mt-4">
-        <% if @school.active? %>
-          <%= button_to t("school_status.deactivate"),
-                deactivate_admin_school_path(@school),
-                method: :patch,
-                form: { data: { turbo_confirm: t("school_status.confirm_deactivate") } },
-                class: "rounded-lg border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50" %>
-        <% else %>
-          <%= button_to t("school_status.reactivate"),
-                reactivate_admin_school_path(@school),
-                method: :patch,
-                class: "rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" %>
+      <section class="rounded-xl border border-rose-200 bg-rose-50/40 p-5">
+        <h2 class="text-base font-bold text-rose-900"><%= t("schools.settings.status_title") %></h2>
+        <p class="mt-1 text-sm text-rose-700"><%= t("schools.settings.status_description") %></p>
+        <% if @school.errors[:base].any? %>
+          <p class="mt-3 text-sm font-semibold text-rose-700"><%= @school.errors.full_messages_for(:base).to_sentence %></p>
         <% end %>
-      </div>
-    </section>
+        <div class="mt-4">
+          <% if @school.active? %>
+            <%= button_to t("school_status.deactivate"),
+                  deactivate_admin_school_path(@school),
+                  method: :patch,
+                  form: { data: { turbo_confirm: t("school_status.confirm_deactivate") } },
+                  class: "rounded-lg border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50" %>
+          <% else %>
+            <%= button_to t("school_status.reactivate"),
+                  reactivate_admin_school_path(@school),
+                  method: :patch,
+                  class: "rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" %>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+
+    <% if @planning_school_year || @can_start_planning_school_year %>
+      <%= render "planning_settings" %>
+    <% end %>
   </div>
 </section>

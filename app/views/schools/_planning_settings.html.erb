@@ -1,0 +1,35 @@
+<section class="rounded-xl border border-sky-200 bg-sky-50/40 p-5">
+  <h2 class="text-base font-bold text-slate-900"><%= t("schools.settings.planning.title") %></h2>
+
+  <% if @planning_school_year %>
+    <p class="mt-1 text-sm text-slate-600">
+      <%= t("schools.settings.planning.existing", year: @planning_school_year.year) %>
+    </p>
+    <% if @can_manage_planning_school_year %>
+      <%= link_to t("school_years.planning.manage"),
+            school_planning_path(@school),
+            class: "mt-4 inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700" %>
+    <% end %>
+  <% elsif @can_start_planning_school_year %>
+    <p class="mt-1 text-sm text-slate-600">
+      <%= t(
+            "schools.settings.planning.next",
+            current_year: @active_school_year.year,
+            next_year: @next_planning_year
+          ) %>
+    </p>
+    <%= button_to t("school_years.planning.start", year: @next_planning_year),
+          school_school_years_path(@school),
+          method: :post,
+          form: {
+            class: "mt-4",
+            data: {
+              turbo_confirm: t(
+                "schools.settings.planning.confirm",
+                year: @next_planning_year
+              )
+            }
+          },
+          class: "inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700" %>
+  <% end %>
+</section>

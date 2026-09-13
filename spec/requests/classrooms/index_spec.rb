@@ -88,6 +88,7 @@ RSpec.describe 'Classrooms index entry', type: :request do
     expect(response.body).to include(active_classroom.class_label)
     expect(response.body).not_to include(planning_classroom.class_label, archived_classroom.class_label)
     expect(response.body).to include(I18n.t('ui.buttons.new_classroom'))
+    expect(Nokogiri::HTML(response.body).at_css('article.ring-amber-200')).to be_nil
 
     get classrooms_path, params: { school_id: school.id, school_year_id: planning_year.id }
 
@@ -95,6 +96,11 @@ RSpec.describe 'Classrooms index entry', type: :request do
     expect(response.body).to include(planning_classroom.class_label)
     expect(response.body).not_to include(I18n.t('classrooms.index.context_read_only'))
     planning_document = Nokogiri::HTML(response.body)
+    expect(planning_document.at_css('[data-management-filter-panel]')).to be_present
+    planning_card = planning_document.at_css('article.ring-amber-200')
+    expect(planning_card).to be_present
+    expect(planning_card.text).to include(I18n.t('school_years.status.planning'))
+    expect(planning_card['class']).to include("bg-#{school.color_key}-50/70")
     expect(planning_document.at_css(%(a[href="#{new_classroom_path(
       school_id: school.id,
       school_year_id: planning_year.id
@@ -119,6 +125,7 @@ RSpec.describe 'Classrooms index entry', type: :request do
     )}"]))).to be_present
     expect(archived_document.at_css(%(a[href="#{edit_classroom_path(archived_classroom)}"]))).to be_nil
     expect(archived_document.at_css(%(a[href="#{classroom_members_path(archived_classroom)}"]))).to be_nil
+    expect(archived_document.at_css('article.ring-amber-200')).to be_nil
   end
 
   it 'lets a current manager read active, immediate planning, and archived contexts in their School' do

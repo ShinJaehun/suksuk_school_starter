@@ -146,15 +146,41 @@ RSpec.describe 'School settings', type: :request do
     expect(response.body).not_to include(deactivate_admin_school_path(school))
   end
 
-  it 'blocks managers, members, and guests' do
-    [manager, member].each do |actor|
+  it 'allows the current manager to enter only the planning settings section' do
+    sign_in manager
+
+    get edit_school_path(school)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include(I18n.t("schools.settings.planning.title"))
+    expect(response.body).not_to include(
+      I18n.t("schools.settings.name_title"),
+      I18n.t("schools.settings.color_title"),
+      I18n.t("schools.settings.managers_title"),
+      I18n.t("schools.settings.status_title")
+    )
+
+    patch school_path(school), params: { school: { name: "차단" } }
+    expect(response).to redirect_to(root_path)
+    expect(school.reload.name).to eq("기존 학교")
+  end
+
+  it 'blocks planning managers, ordinary teachers, other-School managers, and guests' do
+    planning_year = create(:school_year, school:, year: manager.school_year.year + 1)
+    planning_manager = create(:user, :teacher, school_year: planning_year,
+      login_id: "planning-settings", school_role: "manager")
+    other_manager = create(:user, :teacher, :active_annual_teacher,
+      annual_school: create(:school), annual_school_role: "manager")
+
+    [planning_manager, member].each do |actor|
       sign_in actor
       get edit_school_path(school)
       expect(response).to redirect_to(root_path)
-
-      patch school_path(school), params: { school: { name: '차단' } }
-      expect(response).to redirect_to(root_path)
     end
+
+    sign_in other_manager
+    get edit_school_path(school)
+    expect(response).to have_http_status(:not_found)
 
     sign_out :user
     get edit_school_path(school)

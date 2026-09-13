@@ -22,6 +22,14 @@ class Users::SessionsController < Devise::SessionsController
     throw(:warden, failure_payload)
   end
 
+  def destroy
+    teacher_school = current_user&.annual_school if current_user&.teacher?
+
+    super do
+      return redirect_to school_teacher_login_path(teacher_school), status: :see_other if teacher_school
+    end
+  end
+
   private
 
   def render_throttled

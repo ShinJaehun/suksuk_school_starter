@@ -51,6 +51,9 @@ RSpec.describe 'Classroom students', type: :request do
       expect(cards.map { |card| card.at_css('[data-student-number]').text.squish }).to eq(
         ['1번', '2번', '5번', '번호 미지정', '번호 미지정']
       )
+      expect(cards.first.at_css(
+        "img.h-10.w-10.shrink-0.rounded-lg.border.border-slate-200.bg-slate-100.object-cover"
+      )).to be_present
       expect(response.body).not_to include(inactive_student.name, '12번')
     end
   end

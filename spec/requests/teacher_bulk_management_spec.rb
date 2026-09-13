@@ -31,6 +31,8 @@ RSpec.describe 'Teacher bulk management', type: :request do
   end
 
   it 'renders the source grade tabs and bulk controls at /admin/teachers' do
+    teacher = create(:user, :teacher, school_year: active_year, school_role: "member",
+                                      login_id: "avatar-bulk-teacher")
     sign_in current_manager
 
     get admin_teachers_path
@@ -40,6 +42,40 @@ RSpec.describe 'Teacher bulk management', type: :request do
     expect(document.css('a').map(&:text)).to include('전체', '1학년', '2학년', '3학년', '4학년', '5학년', '6학년', '미배정')
     expect(document.at_css(%(a[href^="#{bulk_setup_admin_teachers_path}"]))).to be_present
     expect(document.at_css(%(form[action^="#{bulk_update_admin_teachers_path}"]))).to be_present
+    expect(document.at_css('[data-management-filter-panel]')).to be_present
+    name_input = document.at_css(%(input[name^="teachers[rows]"][name$="[name]"][value="#{teacher.name}"]))
+    expect(name_input&.parent&.at_css("img.h-8.w-8")).to be_present
+  end
+
+  it 'returns single-create credentials to the trusted bulk management context only' do
+    sign_in current_manager
+    get admin_teachers_path, params: context(active_year)
+
+    document = Nokogiri::HTML(response.body)
+    add_link = document.at_css(%(a[href*="management_source=admin"][href^="#{new_teacher_path}"]))
+    expect(add_link).to be_present
+
+    get add_link['href']
+    expect(Nokogiri::HTML(response.body).at_css(
+      'input[name="management_source"][value="admin"]'
+    )).to be_present
+
+    post teachers_path, params: context(active_year).merge(
+      management_source: 'admin',
+      membership_grade: 4,
+      user: { name: '단건 일괄 화면 교사', login_id: 'admin-surface-single', email: '' }
+    )
+    result = Nokogiri::HTML(response.body)
+    expect(result.at_css(%(a[href="#{admin_teachers_path(context(active_year))}"]))).to be_present
+
+    post teachers_path, params: context(active_year).merge(
+      management_source: 'https://example.test/escape',
+      membership_grade: 4,
+      user: { name: '일반 화면 교사', login_id: 'untrusted-source-single', email: '' }
+    )
+    result = Nokogiri::HTML(response.body)
+    expect(result.at_css(%(a[href="#{teachers_path(context(active_year))}"]))).to be_present
+    expect(response.body).not_to include('example.test/escape')
   end
 
   it 'keeps the current manager on the active SchoolYear by default' do
