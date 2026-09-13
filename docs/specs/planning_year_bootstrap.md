@@ -66,18 +66,9 @@ Current operational manager의 기본 `/teachers`, `/classrooms` context는 acti
 
 ## Planning teacher bulk contract
 
-한 요청은 한 School의 하나의 planning SchoolYear에 여러 annual teacher User를 생성한다. Active teacher를 이동·복제하지 않으며 이름, `login_id`, email 또는 avatar로 다른 연도의 동일 인물을 추론하지 않는다.
+Active/planning 공통 Teacher bulk UI, 입력, transaction, validation, HomeroomAssignment와 credential 결과 계약의 primary canonical source는 [`teacher_bulk_management.md`](teacher_bulk_management.md)다.
 
-각 row의 입력은 다음과 같다.
-
-- 이름
-- `login_id`
-- grade 1..6
-- optional gender와 avatar 선택
-
-`school_year_id`, role, `school_role`, active 상태와 credential field는 client 입력으로 받지 않는다. Server가 teacher role, resolved planning SchoolYear, active account와 `school_role: member`를 지정한다. `login_id` normalization과 SchoolYear-scoped uniqueness, 이름·grade·gender·avatar validation은 기존 User 계약을 따른다. Avatar는 현재 teacher 생성의 허용 pool과 기본 선택 정책을 재사용하며 active-year User의 avatar를 복사하지 않는다.
-
-Global admin과 manager의 초기 bulk 모두 member teacher만 생성한다. Manager 지정·교체·해제는 bulk row option으로 섞지 않고 별도의 authorized planning manager operation으로 분리한다. 이로써 manager용 payload 조작으로 `school_role: manager`를 만들 수 없고 두 actor가 같은 member 생성 operation을 공유할 수 있다.
+Planning context에서는 해당 문서의 공통 bulk workflow를 exact immediate planning SchoolYear에 적용한다. Teacher와 grade 및 optional planning HomeroomAssignment만 만들고 Student data는 만들지 않는다. Planning assignment는 이 문서의 3월 1일 시작일, 변경·해제 시 준비 row 삭제, manager protection과 preparation authority를 유지한다. Bulk row로 `school_role: manager`를 만들거나 manager designation을 우회하지 않는다.
 
 ## Planning manager designation
 
@@ -352,7 +343,7 @@ Planning Classroom 준비의 기본 경로는 별도 planning surface나 bulk �
 
 ## HomeroomAssignment contract
 
-Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 planning SchoolYear context에서 Teacher 한 건의 설정 화면으로 진입해 HomeroomAssignment를 연결·변경·해제한다. 별도 planning route/controller/view나 bulk assignment workflow를 만들지 않으며, Teacher bulk나 Classroom 단건 생성에 담임 입력을 강제하지 않는다. Planning `/classrooms`에서는 현재 담임 정보를 표시할 수 있지만 담임 변경 form은 제공하지 않는다.
+Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 planning SchoolYear context에서 단건 설정 또는 공통 Teacher bulk table로 HomeroomAssignment를 연결·변경·해제한다. 별도 planning route/controller/view는 만들지 않으며 Teacher bulk나 Classroom 단건 생성에 담임 입력을 강제하지 않는다. Planning `/classrooms`에서는 현재 담임 정보를 표시할 수 있지만 변경 form을 제공하지 않는다.
 
 - Teacher와 Classroom은 모두 같은 resolved planning SchoolYear에 속해야 한다.
 - Teacher와 Classroom은 active이고 target School도 active여야 한다.
@@ -373,7 +364,7 @@ Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 plann
 - 이미 같은 연결이면 row를 다시 만들지 않는 idempotent success로 처리할 수 있다.
 - Active-year의 기존 HomeroomAssignment 연결·변경·해제와 `ended_on` history semantics는 변경하지 않는다. Planning 전용 삭제 semantics가 active operation으로 번지지 않게 별도의 operation boundary를 유지한다.
 
-Planning assignment operation은 한 요청에서 하나의 Teacher를 대상으로 한다. 여러 Teacher의 연결을 한 번에 제출하는 bulk assignment는 현재 canonical workflow가 아니며 필요성이 확인되면 별도 specification과 승인을 거친다. 정확한 Classroom picker와 layout은 기존 Teacher 설정 surface와 현재 UI 패턴에 맞춘다.
+단건 assignment operation은 한 요청에서 하나의 Teacher를 대상으로 한다. 여러 Teacher의 연결을 제출하는 경우에는 [`teacher_bulk_management.md`](teacher_bulk_management.md)의 공통 bulk update contract만 사용하며, 별도 planning assignment engine이나 route를 만들지 않는다.
 
 ## Planning data edit/remove semantics
 
@@ -418,9 +409,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 
 ## Row validation, error와 duplicate handling
 
-- Teacher bulk에서 모든 field가 비어 있는 row는 입력에서 제외한다. 하나 이상의 field만 입력된 불완전한 row는 validation error로 처리한다.
-- Teacher bulk 오류는 row 번호와 field를 식별할 수 있게 반환하되 다른 School의 resource 존재 여부를 노출하지 않는다.
-- Teacher bulk는 normalization 후 batch 내부 duplicate와 target planning SchoolYear의 existing row duplicate를 모두 검사한다.
+- Teacher bulk row, error와 duplicate handling은 [`teacher_bulk_management.md`](teacher_bulk_management.md)의 공통 contract를 따른다.
 - Duplicate `login_id`는 기존 row를 update하거나 skip하지 않는다. Classroom 단건 생성의 duplicate grade/label은 기존 Classroom validation과 DB constraint에 따라 실패한다.
 - Retry 시 이미 저장된 teacher batch나 Classroom을 성공으로 오인하지 않는다. 중복은 명시적 실패이며 사용자가 existing planning data를 확인해 수정한다.
 - Teacher bulk에서 입력 순서와 상관없이 일부 유효 row만 저장하는 partial success는 허용하지 않는다.
@@ -563,7 +552,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - Current operational manager의 successor 추천/proposal model, persistence와 UI
 - Planning manager용 별도 account, login route 또는 manager-only workspace
 - Planning manager 지정에 따른 credential 재발급, HomeroomAssignment/profile/grade 변경
-- Planning HomeroomAssignment bulk 연결 workflow. 향후 필요하면 Teacher 단건 operation 계약과 active-year history 경계를 보존하는 별도 enhancement로 specification한다.
+- 공통 Teacher bulk contract 밖의 Planning HomeroomAssignment 전용 bulk workflow
 - Permanent Teacher identity 또는 연도별 User 자동 연결
 - Manager 정확히 1명 외 business eligibility 조건
 - 자동 또는 날짜 기반 rollover와 next planning SchoolYear 자동 생성
