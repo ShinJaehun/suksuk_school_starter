@@ -175,92 +175,22 @@ class TeachersController < ApplicationController
   end
 
   def prepare_teacher_index_context
-    if current_user.admin? &&
-       params[:school_year_id].present? &&
-       params[:school_id].blank?
-      raise ActiveRecord::RecordNotFound
-    end
-
     @show_school_year_selector = current_user.admin? || current_user.current_operational_manager? ||
                                  current_user.planning_manager_session_eligible?
-    @filter_schools = teacher_context_schools
-    @selected_school = selected_teacher_context_school
-    @school_year_options = allowed_teacher_context_years(@selected_school)
-    @selected_school_year = selected_teacher_context_year
-    @teacher_context_mutable = teacher_context_mutable?
-    @teacher_context_creatable = teacher_context_creatable?
+    @filter_schools = teacher_management_context.schools
+    @selected_school = teacher_management_context.selected_school
+    @school_year_options = teacher_management_context.school_years
+    @selected_school_year = teacher_management_context.selected_school_year
+    @teacher_context_mutable = teacher_management_context.mutable?
+    @teacher_context_creatable = teacher_management_context.creatable?
     @new_teacher_path = new_teacher_path(teacher_context_params)
   end
 
   def prepare_teacher_creation_context
-    @teacher_creation_context_explicit = params[:school_year_id].present?
-    @teacher_creation_school = selected_teacher_context_school
-
-    @teacher_creation_school_year =
-      if @teacher_creation_context_explicit
-        raise ActiveRecord::RecordNotFound if current_user.admin? && params[:school_id].blank?
-
-        raise ActiveRecord::RecordNotFound unless @teacher_creation_school
-
-        school_year = @teacher_creation_school.school_years.find(params[:school_year_id])
-
-        raise ActiveRecord::RecordNotFound unless school_year.active? || school_year.planning?
-
-        school_year
-      else
-        @teacher_creation_school&.school_years&.active&.first
-      end
-
+    @teacher_creation_context_explicit = teacher_management_context.creation_context_explicit?
+    @teacher_creation_school = teacher_management_context.selected_school
+    @teacher_creation_school_year = teacher_management_context.creation_school_year
     @planning_teacher_creation = @teacher_creation_school_year&.planning?
-  end
-
-  def teacher_context_schools
-    return policy_scope(School).order(:name, :id).load if current_user.admin?
-
-    [current_user.annual_school]
-  end
-
-  def selected_teacher_context_school
-    if current_user.admin?
-      return nil if params[:school_id].blank?
-
-      return policy_scope(School).find(positive_id_param!(:school_id))
-    end
-
-    school = current_user.annual_school
-    raise ActiveRecord::RecordNotFound if params[:school_id].present? && positive_id_param!(:school_id) != school.id
-
-    school
-  end
-
-  def allowed_teacher_context_years(school)
-    return SchoolYear.none unless school
-    return school.school_years.order(year: :desc) if current_user.admin?
-
-    if current_user.current_operational_manager?
-      years = school.school_years.archived.to_a << current_user.school_year
-      planning_year = school.planning_school_year
-      years << planning_year if planning_year&.year == current_user.school_year.year + 1
-      return SchoolYear.where(id: years.map(&:id)).order(year: :desc)
-    end
-
-
-    return SchoolYear.where(id: current_user.school_year_id) if current_user.planning_manager_session_eligible?
-
-    SchoolYear.where(id: current_user.school_year_id)
-  end
-
-  def selected_teacher_context_year
-    if params[:school_year_id].present?
-      raise ActiveRecord::RecordNotFound unless @selected_school
-
-      return @school_year_options.find(positive_id_param!(:school_year_id))
-    end
-
-    return nil if current_user.admin? && @selected_school.nil?
-    return current_user.school_year if current_user.planning_manager_session_eligible?
-
-    @school_year_options.find_by!(status: :active)
   end
 
   def teacher_index_scope
@@ -269,35 +199,8 @@ class TeachersController < ApplicationController
     User.teacher.joins(:school_year).merge(SchoolYear.active)
   end
 
-  def teacher_context_mutable?
-    return true if current_user.admin? && @selected_school_year.nil?
-    return false unless @selected_school_year
-
-    candidate = User.new(
-      role: :teacher,
-      school_year: @selected_school_year,
-      school_role: 'member',
-      active: true
-    )
-    return TeacherManagementPolicy.new(current_user, candidate).update_profile? if @selected_school_year.planning?
-    return false unless @selected_school_year.active?
-
-    current_user.admin? || current_user.current_operational_manager? ||
-      current_user.planning_manager_session_eligible?
-  end
-
-  def teacher_context_creatable?
-    candidate = User.new(role: :teacher, school_year: @selected_school_year)
-    TeacherManagementPolicy.new(current_user, candidate).create?
-  end
-
   def teacher_context_params
-    return {} unless @selected_school_year
-
-    {
-      school_id: @selected_school_year.school_id,
-      school_year_id: @selected_school_year.id
-    }
+    teacher_management_context.context_params(@selected_school_year)
   end
 
   def positive_id_param!(key)
@@ -477,14 +380,7 @@ class TeachersController < ApplicationController
   end
 
   def explicit_teacher_management_year
-    raise ActiveRecord::RecordNotFound if current_user.admin? && params[:school_id].blank?
-
-    school = selected_teacher_context_school
-    raise ActiveRecord::RecordNotFound unless school&.active?
-
-    allowed_teacher_context_years(school)
-      .where(status: %i[active planning])
-      .find(positive_id_param!(:school_year_id))
+    teacher_management_context.explicit_mutation_school_year
   end
 
   def teacher_assignment_school_year(school)
@@ -504,12 +400,7 @@ class TeachersController < ApplicationController
 
   def teacher_form_context_params
     school_year = @teacher_form_school_year || @teacher_edit_school_year
-    return {} unless school_year
-
-    {
-      school_id: school_year.school_id,
-      school_year_id: school_year.id
-    }
+    teacher_management_context.context_params(school_year)
   end
 
   def teacher_update_return_path
@@ -551,6 +442,14 @@ class TeachersController < ApplicationController
 
   def teacher_management_scope
     policy_scope(User, policy_scope_class: TeacherManagementPolicy::Scope)
+  end
+
+  def teacher_management_context
+    @teacher_management_context ||= Teachers::ManagementContext.new(
+      actor: current_user,
+      params: params,
+      schools_scope: policy_scope(School)
+    )
   end
 
   def update_status(active)
