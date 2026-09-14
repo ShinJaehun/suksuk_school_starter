@@ -119,7 +119,10 @@ ko:
       creation_conflict: "다음 학년도를 생성하지 못했습니다. 다시 확인해 주세요."
     rollover:
       success: "%{year}학년도 운영을 시작했습니다."
+      overdue: "%{year}학년도 전환이 지연되고 있습니다."
+      recovery: "선생님 계정과 대표 지정 등 전환 조건을 확인하고 복구한 뒤 수동으로 학년도 운영을 시작할 수 있습니다."
       errors:
+        rollover_not_open: "%{year}학년도 시작은 %{year}년 2월 1일부터 가능합니다."
         inactive_school: "비활성 학교는 학년도를 전환할 수 없습니다."
         active_school_year_missing: "현재 운영 학년도 구성을 확인해 주세요."
         planning_school_year_missing: "전환할 준비 학년도를 찾을 수 없습니다."

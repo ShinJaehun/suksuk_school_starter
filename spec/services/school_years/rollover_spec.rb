@@ -1,6 +1,10 @@
 require 'rails_helper'
 
 RSpec.describe SchoolYears::Rollover do
+  include ActiveSupport::Testing::TimeHelpers
+
+  around { |example| travel_to(Time.zone.local(2027, 2, 1)) { example.run } }
+
   let(:school) { create(:school) }
   let!(:active_year) { create(:school_year, :active, school: school, year: 2026) }
   let!(:planning_year) { create(:school_year, school: school, year: 2027) }
@@ -11,6 +15,39 @@ RSpec.describe SchoolYears::Rollover do
 
   def rollover
     described_class.call(school: school, target_school_year_id: planning_year.id)
+  end
+
+  it 'rejects January 31 at the transition boundary without consuming an automatic attempt' do
+    travel_to Time.zone.local(2027, 1, 31, 23, 59, 59)
+
+    expect { rollover }.to raise_error(described_class::InvalidState) { |error|
+      expect(error.key).to eq(:rollover_not_open)
+    }
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_planning
+    expect(planning_year.automatic_rollover_attempted_at).to be_nil
+  end
+
+  it 'opens on February 1 without consuming an automatic attempt' do
+    rollover
+
+    expect(active_year.reload).to be_archived
+    expect(planning_year.reload).to be_active
+    expect(planning_year.automatic_rollover_attempted_at).to be_nil
+  end
+
+  it 'does not allow consecutive rollover into a future target year' do
+    rollover
+    next_year = create(:school_year, school: school, year: 2028)
+    create(:user, :teacher, school_year: next_year, school_role: 'manager', login_id: 'future-manager')
+
+    expect {
+      described_class.call(school: school, target_school_year_id: next_year.id)
+    }.to raise_error(described_class::InvalidState) { |error|
+      expect(error.key).to eq(:rollover_not_open)
+    }
+    expect(planning_year.reload).to be_active
+    expect(next_year.reload).to be_planning
   end
 
   [{ active: false }, { encrypted_password: '' }, { encrypted_password: 'invalid' }].each do |corruption|

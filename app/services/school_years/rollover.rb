@@ -62,6 +62,7 @@ module SchoolYears
       fail_with!(:target_not_planning) unless target_school_year.planning?
       fail_with!(:planning_school_year_mismatch) unless school.school_years.planning.where.not(id: target_school_year.id).none?
       fail_with!(:non_consecutive_year) unless target_school_year.year == active_school_year.year + 1
+      fail_with!(:rollover_not_open) unless target_school_year.rollover_open?
 
       eligibility = RolloverEligibility.new(school_year: target_school_year)
       fail_with!(eligibility.error_key) unless eligibility.eligible?

@@ -26,6 +26,14 @@ class SchoolYear < ApplicationRecord
     uniqueness: { scope: :school_id },
     if: :capacity_limited_status?
 
+  def rollover_open?
+    Date.current >= Date.new(year, 2, 1)
+  end
+
+  def rollover_overdue?
+    planning? && Date.current >= Date.new(year, 3, 1)
+  end
+
   private
 
   def capacity_limited_status?

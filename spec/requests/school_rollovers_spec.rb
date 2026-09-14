@@ -1,6 +1,10 @@
 require 'rails_helper'
 
 RSpec.describe 'SchoolYear rollover', type: :request do
+  include ActiveSupport::Testing::TimeHelpers
+
+  around { |example| travel_to(Time.zone.local(2027, 2, 1)) { example.run } }
+
   let(:school) { create(:school) }
   let!(:active_year) { create(:school_year, :active, school: school, year: 2026) }
   let!(:planning_year) { create(:school_year, school: school, year: 2027) }
@@ -16,6 +20,55 @@ RSpec.describe 'SchoolYear rollover', type: :request do
 
   def rollover(target: planning_year, target_id: target.id)
     post school_planning_rollover_path(school), params: { school_year_id: target_id }
+  end
+
+  it 'hides the control and rejects a direct admin POST on January 31' do
+    travel_to Time.zone.local(2027, 1, 31, 23, 59, 59)
+    sign_in admin
+
+    get school_planning_path(school)
+
+    document = Nokogiri::HTML(response.body)
+    expect(document.at_css(%(form[action="#{school_planning_rollover_path(school)}"]))).to be_nil
+    message = I18n.t('school_years.rollover.errors.rollover_not_open', year: 2027)
+    expect(response.body).to include(message)
+
+    rollover
+
+    expect(response).to redirect_to(school_planning_path(school))
+    expect(flash[:alert]).to eq(message)
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_planning
+  end
+
+  it 'rejects a Turbo POST before opening with the same localized calendar error' do
+    travel_to Time.zone.local(2027, 1, 31)
+    sign_in admin
+
+    post school_planning_rollover_path(school),
+      params: { school_year_id: planning_year.id }, as: :turbo_stream
+
+    expect(response).to have_http_status(:see_other)
+    expect(flash[:alert]).to eq(I18n.t('school_years.rollover.errors.rollover_not_open', year: 2027))
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_planning
+  end
+
+  it 'shows overdue recovery and credential blockers without mutating on repeated page views' do
+    travel_to Time.zone.local(2027, 3, 1)
+    planning_manager.update_column(:encrypted_password, '')
+    sign_in admin
+
+    2.times { get school_planning_path(school) }
+
+    expect(response.body).to include(
+      I18n.t('school_years.rollover.overdue', year: 2027),
+      I18n.t('school_years.rollover.recovery'),
+      I18n.t('school_years.rollover.errors.manager_credentials_invalid')
+    )
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_rollover_overdue
+    expect(planning_year.automatic_rollover_attempted_at).to be_nil
   end
 
   [{ active: false }, { encrypted_password: '' }, { encrypted_password: 'invalid' }].each do |corruption|

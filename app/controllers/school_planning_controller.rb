@@ -32,7 +32,10 @@ class SchoolPlanningController < ApplicationController
     @can_manage_planning_manager = policy(@school).manage_planning_managers?
     @rollover_eligibility = SchoolYears::RolloverEligibility.new(school_year: @planning_school_year)
     @rollover_error_key = @rollover_eligibility.error_key
-    @can_rollover = policy(@school).rollover? && @rollover_eligibility.eligible?
+    can_manage_rollover = policy(@school).rollover?
+    @rollover_calendar_closed = can_manage_rollover && !@planning_school_year.rollover_open?
+    @rollover_overdue = can_manage_rollover && @planning_school_year.rollover_overdue?
+    @can_rollover = can_manage_rollover && @planning_school_year.rollover_open? && @rollover_eligibility.eligible?
     @can_cancel_planning = policy(@planning_school_year).cancel?
     @cancellation_summary = {
       teacher_count: planning_teachers.count,

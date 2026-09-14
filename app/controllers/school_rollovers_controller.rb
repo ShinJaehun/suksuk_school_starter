@@ -14,7 +14,7 @@ class SchoolRolloversController < ApplicationController
       status: :see_other
   rescue SchoolYears::Rollover::InvalidState => error
     redirect_to rollover_failure_path(error),
-      alert: t("school_years.rollover.errors.#{error.key}"),
+      alert: t("school_years.rollover.errors.#{error.key}", year: rollover_target_year),
       status: :see_other
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     redirect_to school_path(@school),
@@ -36,8 +36,12 @@ class SchoolRolloversController < ApplicationController
   end
 
   def rollover_failure_path(error)
-    return school_planning_path(@school) if error.key == :manager_missing
+    return school_planning_path(@school) if %i[manager_missing rollover_not_open].include?(error.key)
 
     school_path(@school)
+  end
+
+  def rollover_target_year
+    @school.school_years.find_by(id: params[:school_year_id])&.year
   end
 end

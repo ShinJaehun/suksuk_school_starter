@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_003000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_14_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -71,6 +71,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_003000) do
   end
 
   create_table "school_years", force: :cascade do |t|
+    t.datetime "automatic_rollover_attempted_at"
     t.datetime "created_at", null: false
     t.bigint "school_id", null: false
     t.string "status", default: "planning", null: false

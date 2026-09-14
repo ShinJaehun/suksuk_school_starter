@@ -1,6 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe 'Planning manager collaboration', type: :request do
+  include ActiveSupport::Testing::TimeHelpers
   let(:school) { create(:school) }
   let!(:active_year) { create(:school_year, :active, school: school, year: 2026) }
   let!(:planning_year) { create(:school_year, school: school, year: 2027) }
@@ -325,6 +326,7 @@ RSpec.describe 'Planning manager collaboration', type: :request do
   end
 
   it 'keeps the same session as the new operational manager after rollover' do
+    travel_to Time.zone.local(2027, 2, 1)
     SchoolYears::Rollover.call(school: school, target_school_year_id: planning_year.id)
     planning_manager.reload
 
@@ -333,5 +335,7 @@ RSpec.describe 'Planning manager collaboration', type: :request do
     expect(response).to have_http_status(:ok)
     expect(controller.current_user).to eq(planning_manager)
     expect(controller.current_user).to be_current_operational_manager
+  ensure
+    travel_back
   end
 end
