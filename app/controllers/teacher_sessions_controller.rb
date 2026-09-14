@@ -26,6 +26,7 @@ class TeacherSessionsController < ApplicationController
     if teacher&.active? && teacher.valid_password?(params.dig(:teacher, :password).to_s)
       limiter.reset
       sign_in(:user, teacher)
+      clear_student_session
       redirect_to teacher.password_change_required? ? edit_forced_password_path : after_sign_in_path_for(teacher)
     else
       limiter.record_failure

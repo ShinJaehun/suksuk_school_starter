@@ -12,7 +12,10 @@ class Users::SessionsController < Devise::SessionsController
 
     authenticated = false
     failure_payload = catch(:warden) do
-      super { limiter.reset }
+      super do
+        limiter.reset
+        clear_student_session
+      end
       authenticated = true
     end
 
