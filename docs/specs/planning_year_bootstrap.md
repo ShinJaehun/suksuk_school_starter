@@ -137,6 +137,8 @@ Business eligibility를 계산하기 전에 rollover target 자체에 다음 str
 
 Planning manager는 rollover 전에도 자기 School의 School operation authority를 갖지만 `current_operational_manager?` 또는 rollover governance authority는 얻지 않는다. Rollover가 성공해 planning SchoolYear가 active가 되면 해당 annual Teacher의 기존 `school_role: manager`가 새 current operational manager authority의 근거가 된다. Successor record를 만들거나 role을 다른 annual User에 복사하지 않는다. Planning manager의 `active` boolean을 별도 eligibility checklist로 사용하지 않으며, 인증 불가능한 비정상 row가 발견되면 후속 rollover transaction safety validation에서 fail closed한다.
 
+최종 audit에서 이 transaction safety 누락을 확인했다. Manager exactly one이라는 정상 business 조건과 비정상 manager의 인증 가능성 방어를 구분하며, 구체적인 acceptance criteria와 regression protection은 [Final Starter Audit Hardening §6](final_starter_audit_hardening.md#6-planning-rollover-manager-fail-closed)의 human-review 대상 계약을 따른다. 아래 acceptance criteria의 manager 1명 성공은 이 safety precondition을 통과한 정상 row를 전제로 한다.
+
 Preparation page는 기존 정보성 count를 유지하면서 향후 작은 `운영 전환 조건` 영역에서 manager 지정 여부만 eligibility 조건으로 구분할 수 있다. Manager가 없으면 `다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다.`에 해당하는 localized 안내를 표시하고, Teacher/Classroom/Homeroom count를 완료/실패 checklist로 바꾸지 않는다. B9에서는 rollover button을 추가하지 않는다.
 
 B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, locking과 transaction ordering, active → archived 및 planning → active transition과 failure rollback은 이 문서의 B10 actual rollover contract에서 정의한다. Rollover reversal/recovery와 별도 audit 확장은 후속 범위다.

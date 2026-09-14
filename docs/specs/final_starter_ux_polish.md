@@ -45,6 +45,8 @@ Authority와 context resolution은 기존 policy, `Teachers::ManagementContext`,
 - 신규 Teacher create form의 기존 `login_id` 입력은 유지한다.
 - 현재 관리 detail surface는 edit page이며 별도 `/teachers/:id` show page를 만들지 않는다.
 
+이 read-only 계약은 individual edit/update에 한정되며 [Teacher bulk row update](teacher_bulk_management.md#bulk-row-update)의 허용된 login ID 수정은 유지한다. 최종 audit에서 발견한 individual update permitted params 누락의 서버측 보강 기준은 [Final Starter Audit Hardening §4](final_starter_audit_hardening.md#4-individual-teacher-login_id-immutability)에 기록한다.
+
 ## 3. Classroom Student avatar
 
 `app/views/classroom_students/_student_card.html.erb`의 avatar class만 Growth Record와 일치시킨다.
