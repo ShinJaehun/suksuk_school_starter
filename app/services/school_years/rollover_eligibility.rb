@@ -1,3 +1,5 @@
+require 'bcrypt'
+
 module SchoolYears
   class RolloverEligibility
     attr_reader :manager_count
@@ -14,7 +16,8 @@ module SchoolYears
     def error_key
       return :manager_missing if manager_count.zero?
       return :manager_cardinality_invalid unless manager_count == 1
-      return :manager_credentials_invalid unless manager_credentials_usable?
+
+      :manager_credentials_invalid unless manager_credentials_usable?
     end
 
     def manager
