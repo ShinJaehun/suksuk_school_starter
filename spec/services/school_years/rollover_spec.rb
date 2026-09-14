@@ -13,6 +13,48 @@ RSpec.describe SchoolYears::Rollover do
     described_class.call(school: school, target_school_year_id: planning_year.id)
   end
 
+  [{ active: false }, { encrypted_password: '' }, { encrypted_password: 'invalid' }].each do |corruption|
+    it "rejects #{corruption.inspect} without changing annual resources or credentials" do
+      planning_manager.update_columns(corruption)
+      original = planning_manager.reload.attributes
+
+      expect do
+        expect { rollover }.to raise_error(described_class::InvalidState) { |error|
+          expect(error.key).to eq(:manager_credentials_invalid)
+        }
+      end.not_to change { [User.count, Classroom.count, HomeroomAssignment.count, TeacherCredentialEvent.count] }
+
+      expect(active_year.reload).to be_active
+      expect(planning_year.reload).to be_planning
+      expect(planning_manager.reload.attributes).to eq(original)
+    end
+  end
+
+  it 'rechecks the manager after acquiring the School and SchoolYear locks' do
+    expect(SchoolYears::RolloverEligibility.new(school_year: planning_year)).to be_eligible
+    allow(school).to receive(:lock!).and_wrap_original do |method, *args|
+      method.call(*args)
+      planning_manager.update_column(:encrypted_password, '')
+    end
+
+    expect { rollover }.to raise_error(described_class::InvalidState) { |error|
+      expect(error.key).to eq(:manager_credentials_invalid)
+    }
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_planning
+  end
+
+  it 'rolls over a manager with temporary credentials and no classroom preparation' do
+    planning_manager.update!(password_change_required: true, grade: nil, email: nil)
+    digest = planning_manager.encrypted_password
+
+    rollover
+
+    expect(planning_year.reload).to be_active
+    expect(planning_manager.reload).to have_attributes(password_change_required: true, encrypted_password: digest)
+    expect(planning_year.classrooms).to be_empty
+  end
+
   it 'atomically archives the current year and activates the explicit planning year' do
     result = rollover
 

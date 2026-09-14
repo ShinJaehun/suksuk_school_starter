@@ -64,8 +64,7 @@ module SchoolYears
       fail_with!(:non_consecutive_year) unless target_school_year.year == active_school_year.year + 1
 
       eligibility = RolloverEligibility.new(school_year: target_school_year)
-      fail_with!(:manager_missing) if eligibility.manager_count.zero?
-      fail_with!(:manager_cardinality_invalid) unless eligibility.eligible?
+      fail_with!(eligibility.error_key) unless eligibility.eligible?
     end
 
     def fail_with!(key)

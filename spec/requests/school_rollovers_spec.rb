@@ -18,6 +18,25 @@ RSpec.describe 'SchoolYear rollover', type: :request do
     post school_planning_rollover_path(school), params: { school_year_id: target_id }
   end
 
+  [{ active: false }, { encrypted_password: '' }, { encrypted_password: 'invalid' }].each do |corruption|
+    it "fails closed for manager #{corruption.inspect} with a localized error" do
+      planning_manager.update_columns(corruption)
+      sign_in admin
+
+      get school_planning_path(school)
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css(%(form[action="#{school_planning_rollover_path(school)}"]))).to be_nil
+      expect(response.body).to include(I18n.t('school_years.rollover.errors.manager_credentials_invalid'))
+
+      rollover
+
+      expect(response).to redirect_to(school_path(school))
+      expect(flash[:alert]).to eq(I18n.t('school_years.rollover.errors.manager_credentials_invalid'))
+      expect(active_year.reload).to be_active
+      expect(planning_year.reload).to be_planning
+    end
+  end
+
   it 'lets a global admin rollover and redirects to the School overview' do
     sign_in admin
 

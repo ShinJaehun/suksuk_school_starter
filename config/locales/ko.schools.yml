@@ -122,4 +122,5 @@ ko:
         non_consecutive_year: "현재 학년도의 바로 다음 학년도만 운영으로 전환할 수 있습니다."
         manager_missing: "다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다."
         manager_cardinality_invalid: "다음 학년도 대표 선생님 구성을 확인해 주세요."
+        manager_credentials_invalid: "다음 학년도 대표 선생님의 계정 상태와 로그인 정보를 확인해 주세요."
         transition_failed: "학년도 운영 전환을 완료하지 못했습니다. 현재 상태를 확인해 주세요."
