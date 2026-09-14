@@ -78,7 +78,7 @@ end
 
 gem "devise", "~> 5.0", ">= 5.0.4"
 gem "pundit"
-gem 'rails-i18n', '~> 8.0.2'
+gem 'rails-i18n', '~> 8.1.0'
 
 # pagination
 gem "pagy"
