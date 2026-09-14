@@ -10,10 +10,10 @@
 
 - Global admin: 명시적으로 선택한 active School의 active/exact planning SchoolYear에서 mutation, archive read-only
 - Current operational manager: 자기 School active 기본, active/exact planning mutation, archive read-only
-- Eligible planning manager: 자기 exact planning 기본, 자기 School active/exact planning mutation, archive read-only
+- Eligible planning manager: 자기 exact planning 기본, 자기 exact planning preparation mutation만 허용
 - Ordinary Teacher와 다른 School actor: deny
 
-기존 `Classrooms::ManagementContext`와 `ClassroomPolicy`가 authority source다. Malformed, unpaired, cross-School, unauthorized SchoolYear는 fallback 없이 fail closed한다. School lifecycle, rollover, manager designation과 Student authority는 확대하지 않는다.
+기존 `Classrooms::ManagementContext`와 `ClassroomPolicy`가 authority source다. Planning manager가 active/archive context를 직접 주입한 경우를 포함해 malformed, unpaired, cross-School, unauthorized SchoolYear는 fallback 없이 fail closed한다. School lifecycle, rollover, manager designation과 Student authority는 확대하지 않는다.
 
 ## Reference UI
 
@@ -65,7 +65,7 @@ Delete는 bulk operation이 아니다. Row action은 기존 `ClassroomPolicy#des
 
 1. `/classrooms` 기존 카드와 개별 관리 flow에는 bulk table/control이 없다.
 2. `/admin/classrooms`에서 허용 actor가 context selector와 reference bulk UI를 사용한다.
-3. Manager defaults, active/planning 선택, archive read-only와 cross-School fail-closed가 유지된다.
+3. Current manager의 active 기본값, active/planning 선택과 archive read-only가 유지되고 planning manager는 자기 exact planning만 사용하며 active/archive와 cross-School context는 fail closed한다.
 4. Create 1..30과 update/operator는 전체 선검증·lock·원자 저장한다.
 5. Normalized class label, Teacher scope/grade/assignment와 final uniqueness가 보존된다.
 6. Active history 및 planning preparation semantics로 swap/cycle이 성공하고 외부 assignment 탈취는 실패한다.

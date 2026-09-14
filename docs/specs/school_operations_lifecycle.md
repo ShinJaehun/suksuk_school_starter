@@ -9,7 +9,7 @@
 ## 용어와 현재 구조
 
 - global admin은 `User.role == "admin"`인 사용자다.
-- current operational manager와 eligible planning manager는 각각 active/exact planning annual `User.school_role == "manager"`이며 자기 School의 공동 운영자다.
+- current operational manager는 active annual `User.school_role == "manager"`인 자기 School 운영자다. Eligible planning manager는 exact planning annual manager이며 자기 planning SchoolYear의 preparation actor다.
 - 일반 선생님은 `User.role == "teacher"`이고 `User.school_role == "member"`인 사용자다.
 - teacher의 학교는 `User.school_year.school`이다.
 - teacher와 classroom의 현재 담당 관계는 current `HomeroomAssignment`로 표현한다.
@@ -47,7 +47,7 @@ global admin도 Pundit policy, `policy_scope`와 서버 검증을 우회하지 �
 
 학교 대표 선생님의 모든 권한은 자신의 `User.school_year.school_id` 범위로 제한된다.
 
-Current manager의 기본 context는 active, planning manager의 기본 context는 exact planning이다. 두 manager 모두 자기 School의 active/planning에서 Teacher와 Classroom을 관리하고 archived year를 read-only로 조회한다. Planning Student mutation은 제공하지 않는다.
+Current manager의 기본 context는 active이고 자기 School의 active/planning에서 Teacher와 Classroom을 관리하며 archived year를 read-only로 조회한다. Planning manager의 기본 및 유일한 허용 context는 자기 exact planning이며 Teacher/Classroom/Homeroom preparation만 관리한다. Planning manager의 active Student operation과 archive 조회는 허용하지 않는다.
 
 `/teachers`에서 다음을 할 수 있다.
 
@@ -222,7 +222,7 @@ teacher의 grade가 `nil`이면 classroom을 배정할 수 없다. 담당 classr
 - 학교 대표 선생님: 자기 학교
 - 일반 선생님: 접근 불가
 
-기본 기능은 Teacher 목록, 추가, 일반 profile 편집과 단일 담당 Classroom 배정·해제다. Current/planning manager는 자기 School의 지원되는 active/planning Teacher operation을 수행한다. Self protection, manager target protection과 manager designation 전용 flow는 유지한다. Global admin에게는 School 범위 선택을 제공하고 manager는 자기 School로 제한한다. 모든 record 조회와 변경은 서버에서 역할별 School scope를 다시 검증한다.
+기본 기능은 Teacher 목록, 추가, 일반 profile 편집과 단일 담당 Classroom 배정·해제다. Current manager는 자기 School의 지원되는 active/planning Teacher operation을 수행하고 planning manager는 자기 exact planning Teacher preparation만 수행한다. Self protection, manager target protection과 manager designation 전용 flow는 유지한다. Global admin에게는 School 범위 선택을 제공하고 manager는 자기 School로 제한한다. 모든 record 조회와 변경은 서버에서 역할별 School scope를 다시 검증한다.
 
 Teacher 생성과 재발급은 서버가 생성하는 temporary credential, 강제 비밀번호 변경, audit와 일회성 표시 계약을 따른다. Manager가 초기 password를 직접 입력하거나 일반 profile update로 password 또는 `school_role`을 바꾸지 않는다. 상세 보안 계약은 [Planning Year Bootstrap](planning_year_bootstrap.md)과 [Teacher Bulk Management](teacher_bulk_management.md)를 따른다.
 
@@ -240,7 +240,7 @@ global admin과 학교 대표 선생님은 권한 범위에서 classroom 추가,
 
 ## `/admin` bulk management 경계
 
-`/admin/teachers`와 `/admin/classrooms`는 global admin 전용 namespace가 아니다. Global admin은 명시한 School/SchoolYear, 두 manager는 자기 School의 active/exact planning context에서 사용하며 archive는 read-only다. Ordinary Teacher와 다른 School actor는 거부한다. Atomic transaction, scope 재검증과 HomeroomAssignment 규칙은 [Teacher bulk management](teacher_bulk_management.md)와 [Classroom bulk management](classroom_bulk_management.md)가 정의한다.
+`/admin/teachers`와 `/admin/classrooms`는 global admin 전용 namespace가 아니다. Global admin은 명시한 School/SchoolYear, current manager는 자기 School의 active/exact planning과 read-only archive context에서 사용한다. Planning manager는 자기 exact planning preparation context에서만 사용한다. Ordinary Teacher와 다른 School actor는 거부한다. Atomic transaction, scope 재검증과 HomeroomAssignment 규칙은 [Teacher bulk management](teacher_bulk_management.md)와 [Classroom bulk management](classroom_bulk_management.md)가 정의한다.
 
 ## Teacher의 school-context 학년 정책
 
@@ -405,7 +405,7 @@ valid school과 학년이 선택되면 해당 school, 해당 grade와 active 상
 39. Current runtime은 `Classroom.teacher_id`나 membership fallback 없이 current `HomeroomAssignment`만 사용한다.
 40. teacher와 classroom 후보 UI는 전체 scope 데이터를 무제한으로 사전 loading하거나 숨겨서 rendering하지 않는다.
 41. 후보 검색, filtering과 직접 parameter 조작은 policy scope 또는 authorization 범위를 넓히지 않는다.
-42. `/admin/teachers`와 `/admin/classrooms`는 global admin과 자기 School의 current/planning manager가 접근하며 ordinary Teacher는 거부한다.
+42. `/admin/teachers`와 `/admin/classrooms`는 global admin과 자기 School의 current manager가 허용 context에서 접근하며 planning manager는 자기 exact planning preparation context에서만 접근한다. Ordinary Teacher는 거부한다.
 43. `Classroom.grade`의 필수 1부터 6 데이터·표시·filter·정렬 정책은 `classroom_grade_foundation.md`를 유지한다.
 
 ## 제약

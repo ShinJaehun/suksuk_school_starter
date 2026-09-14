@@ -26,7 +26,7 @@ Classroom에 직접 속한 Student의 active/inactive lifecycle, 권한과 sessi
 
 - 비활성화/복구와 관리 mutation은 현재 Classroom의 학생 관리 권한을 따른다.
 - global admin은 운영 가능한 Classroom을 관리할 수 있다.
-- current operational manager와 eligible planning manager는 자기 School의 active operational Classroom에서 학생을 관리한다.
+- current operational manager는 자기 School의 active operational Classroom에서 학생을 관리한다. Eligible planning manager는 active Student operation authority를 갖지 않는다.
 - ordinary teacher는 current `HomeroomAssignment`로 배정된 active Classroom만 관리한다.
 - Student는 자신의 self-service와 PIN 변경만 가능하며 다른 Student나 관리 endpoint에 접근할 수 없다.
 - URL Classroom과 `Student.classroom_id`가 다르면 scope를 넓힐 수 없다.

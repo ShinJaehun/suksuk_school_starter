@@ -17,7 +17,7 @@
 - `SchoolYear.status`는 `planning`, `active`, `archived`다. School에는 active와 exact immediate planning SchoolYear가 각각 최대 하나다.
 - current operational manager의 기본 Teacher/Classroom context는 자기 School의 active year다.
 - eligible planning manager의 기본 context는 자기 exact immediate planning year다.
-- 두 manager 모두 자기 School의 active, exact planning과 archived year를 selector에서 선택할 수 있다. archived context는 read-only다.
+- current operational manager는 자기 School의 active, exact planning과 archived year를 selector에서 선택할 수 있다. Eligible planning manager는 자기 exact immediate planning year만 사용할 수 있으며 active/archive context는 fail closed한다.
 - global admin은 명시적으로 School과 SchoolYear를 선택해 모든 School을 관리한다.
 - malformed, cross-School 또는 unauthorized context는 다른 year로 fallback하지 않는다.
 - planning에서는 Teacher, Classroom과 current `HomeroomAssignment` 구성을 준비한다. Student 명단 준비 mutation은 현재 제공하지 않는다.
@@ -52,7 +52,7 @@ Teacher 0..1 ↔ 0..1 Classroom
 ## Student 운영
 
 - Student 소속과 lifecycle의 canonical source는 `Student.classroom_id`, `Student.active`다.
-- active operational Classroom에서 권한 있는 global admin, 자기 School manager 또는 담당 ordinary Teacher가 roster, profile, lifecycle과 PIN/token 관련 operation을 수행한다.
+- active operational Classroom에서 권한 있는 global admin, 자기 School current operational manager 또는 담당 ordinary Teacher가 roster, profile, lifecycle과 PIN/token 관련 operation을 수행한다.
 - archived Student 자료는 자기 scope에서 read-only다.
 - planning Classroom의 Student roster CRUD는 현재 지원하지 않는다.
 
@@ -60,7 +60,7 @@ Teacher 0..1 ↔ 0..1 Classroom
 
 - Pundit policy와 `policy_scope`가 서버측 권한의 최종 기준이다.
 - global admin은 모든 School의 운영 관리자다.
-- current operational manager와 eligible planning manager는 자기 School의 active/planning 운영 관리자이며 archive를 read-only로 본다.
+- current operational manager는 자기 School의 active/planning 운영 관리자이며 archive를 read-only로 본다. Eligible planning manager는 자기 exact immediate planning year의 preparation authority만 가진다.
 - manager 지정은 global admin 또는 current operational manager가 자기 School의 exact planning year에서 수행할 수 있다. Planning manager 자신과 ordinary Teacher는 수행할 수 없다.
 - School lifecycle, actual rollover와 system/recovery operation은 별도의 governance 권한을 유지한다.
 - UI 숨김이나 parameter만으로 scope를 넓힐 수 없다.

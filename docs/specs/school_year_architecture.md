@@ -334,7 +334,7 @@ Reversal은 rollover 직후의 제한된 사고 복구만 대상으로 한다. �
 - global admin은 모든 School의 SchoolYear를 관리하고 archived 자료를 열람한다. 모든 School의 rollover, manager 지정·교체·해제와 cross-school/system recovery를 수행할 수 있다.
 - global admin만 같은 School의 직전 rollover pair에 대한 제한된 reversal/recovery를 수행할 수 있다.
 - current active-year manager는 자기 School 전체의 Classroom, teacher User, Student와 운영 현황을 조회하고 각 기능 spec이 허용한 mutation을 수행한다. 담임 assignment 관리와 학교 전체 집계·통계·보고서도 이 school-wide scope에 포함된다.
-- current active-year manager와 eligible planning manager는 자기 School의 active operation과 exact planning Teacher/Classroom/담임 준비를 함께 수행한다. Planning Student 명단 준비와 student runtime operation은 수행할 수 없다.
+- current active-year manager는 자기 School의 active operation과 exact planning Teacher/Classroom/담임 준비를 수행한다. Eligible planning manager는 자기 exact planning Teacher/Classroom/담임 준비만 수행하며 active Student를 포함한 active operation은 수행할 수 없다.
 - actual rollover는 global admin-only governance operation이다.
 - current active-year manager는 자기 School의 archived SchoolYears를 school-wide read-only로 조회할 수 있다. 이는 과거 role이 아니라 현재 학교 운영 책임에서 나오는 authority이며 다른 School에는 적용되지 않는다.
 - archived manager User는 명시적인 year login context에서 당시 자기 School 전체를 read-only로 열람한다. Archived ordinary teacher User는 당시 실제 담당했던 Classroom 범위만 read-only로 열람한다.
@@ -350,11 +350,11 @@ Reversal은 rollover 직후의 제한된 사고 복구만 대상으로 한다. �
 
 `/teachers`와 `/classrooms`는 기존 개별 운영 surface이고 `/admin/teachers`, `/admin/classrooms`는 bulk surface다.
 
-Global admin이 명시적으로 School과 SchoolYear를 선택하면 각 surface에서 planning, active와 archived context를 조회할 수 있다. Current operational manager와 eligible planning manager는 자기 School의 active와 exact planning year를 관리하고 archived 자료를 read-only로 조회한다. Current manager의 기본 context는 active, planning manager의 기본 context는 자기 planning year다. Ordinary Teacher는 자기 operational year의 기존 scope만 접근한다.
+Global admin이 명시적으로 School과 SchoolYear를 선택하면 각 surface에서 planning, active와 archived context를 조회할 수 있다. Current operational manager는 자기 School의 active와 exact planning year를 관리하고 archived 자료를 read-only로 조회한다. Eligible planning manager는 자기 exact planning year의 preparation만 관리한다. Current manager의 기본 context는 active, planning manager의 기본 context는 자기 planning year다. Ordinary Teacher는 자기 operational year의 기존 scope만 접근한다.
 
 Planning context에서는 member Teacher bulk, temporary credential, Classroom bulk와 담임 연결을 준비할 수 있다. Student roster mutation은 제공하지 않는다. Archived context에서는 mutation control을 노출하지 않고 policy와 domain boundary도 모든 mutation을 거부한다.
 
-SchoolYear context는 URL parameter만으로 결정하지 않는다. Actor에게 허용된 School scope에서 SchoolYear ownership과 status를 server-side로 resolve한다. Context가 생략되면 current operational manager는 active, eligible planning manager는 자기 exact planning year를 사용하고 global admin은 필요한 School/SchoolYear를 명시한다. 잘못되거나 권한 밖인 explicit context는 다른 year로 fallback하지 않는다.
+SchoolYear context는 URL parameter만으로 결정하지 않는다. Actor에게 허용된 School scope에서 SchoolYear ownership과 status를 server-side로 resolve한다. Context가 생략되면 current operational manager는 active, eligible planning manager는 자기 exact planning year를 사용하고 global admin은 필요한 School/SchoolYear를 명시한다. Planning manager가 active/archive context를 직접 주입한 경우를 포함해 잘못되거나 권한 밖인 explicit context는 다른 year로 fallback하지 않는다.
 
 Planning Teacher bulk는 member만 생성하고 manager role payload를 허용하지 않는다. Manager 지정·교체·해제는 global admin 또는 current operational manager가 자기 School의 exact planning designation flow에서 수행하며 planning manager 자신과 ordinary Teacher는 수행할 수 없다. 각 새 User는 temporary credential과 강제 password 변경 상태로 시작한다.
 

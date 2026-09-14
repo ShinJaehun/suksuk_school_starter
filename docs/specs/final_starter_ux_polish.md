@@ -167,7 +167,7 @@ Existing select에서 `optgroup` 또는 동등하게 명확한 grouping을 우�
 - Current operational manager: active
 - Eligible planning manager: 자기 exact immediate planning
 - Global admin: 기존 explicit School/SchoolYear selection semantics
-- Archive: explicit selection only, read-only
+- Archive: global admin과 current operational manager의 explicit selection only, read-only
 
 Malformed, cross-School, cross-year 또는 unauthorized explicit context는 fallback 없이 fail closed한다.
 
@@ -206,7 +206,7 @@ School filter와 SchoolYear/filter form이 dependent context 때문에 나뉘어
 
 - Global admin은 모든 School의 operation scope를 가진다.
 - Current operational manager는 자기 School active/planning management와 archive read authority를 가진다.
-- Eligible planning manager는 자기 School active/planning management와 archive read authority를 가진다.
+- Eligible planning manager는 자기 exact immediate planning SchoolYear의 preparation authority만 가진다.
 - Planning manager 자신은 manager designation/replace/remove를 수행할 수 없다.
 - Actual rollover는 global-admin-only다.
 - Ordinary Teacher는 Teacher management 권한이 없고 담당 active Classroom만 운영한다.

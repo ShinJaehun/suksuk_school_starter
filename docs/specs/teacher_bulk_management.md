@@ -35,7 +35,7 @@ Archived context에서는 Teacher 목록을 현재 read-only 형식으로 조회
 - Global admin은 명시적으로 선택한 active School과 active 또는 planning SchoolYear에서 bulk operation을 수행한다. Bulk mutation endpoint에서는 School과 SchoolYear가 모두 명시되어야 한다.
 - Current operational manager의 기본 `/teachers` context는 자기 School active SchoolYear다.
 - Eligible planning manager의 기본 `/teachers` context는 자기 exact immediate planning SchoolYear다.
-- 두 manager는 자기 School active와 exact immediate planning context를 명시적으로 선택해 bulk operation을 수행할 수 있다.
+- Current operational manager는 자기 School active와 exact immediate planning context에서 bulk operation을 수행할 수 있다. Eligible planning manager는 자기 exact immediate planning context에서만 수행할 수 있다.
 - Archived, inactive School, cross-School, non-immediate planning, malformed, unpaired 또는 unauthorized context에는 mutation control이 없고 direct mutation request도 fallback 없이 fail closed한다.
 - Submitted Teacher와 Classroom id는 resolved SchoolYear association scope 안에서만 찾는다. 다른 School 또는 SchoolYear resource의 존재 여부를 오류 메시지로 구분해 노출하지 않는다.
 
@@ -49,13 +49,13 @@ Archived context에서는 Teacher 목록을 현재 read-only 형식으로 조회
 | Current manager / own active | allow | allow | allow | allow, self-protection 적용 |
 | Current manager / own exact planning | allow | allow | allow | allow, planning manager target protection 적용 |
 | Current manager / own archive | deny | deny | deny | deny |
-| Eligible planning manager / own active | allow | allow | allow | allow, self-protection 적용 |
+| Eligible planning manager / own active | deny | deny | deny | deny |
 | Eligible planning manager / own exact planning | allow | allow | allow | allow, planning manager target protection 적용 |
 | Eligible planning manager / own archive | deny | deny | deny | deny |
 | Either manager / other School | deny | deny | deny | deny |
 | Ordinary teacher | deny | deny | deny | deny |
 
-Bulk authority는 `TeacherManagementPolicy`, `UserPolicy`와 현재 School-operation authority를 최종 기준으로 사용한다. Bulk row로 manager를 지정·교체·해제할 수 없으며 School lifecycle, SchoolYear governance, rollover와 generic `/admin/*` 권한은 확대하지 않는다.
+Bulk authority는 `TeacherManagementPolicy`, `UserPolicy`와 현재 School-operation/preparation authority를 최종 기준으로 사용한다. Bulk row로 manager를 지정·교체·해제할 수 없으며 School lifecycle, SchoolYear governance, rollover와 generic `/admin/*` 권한은 확대하지 않는다.
 
 ## Common input boundary
 
@@ -183,7 +183,7 @@ Starter의 단건 `temporary_password.html.erb`와 bulk credentials table은 같
 1. Teacher index의 기존 School/SchoolYear selector 바깥 구조는 유지되고 editable active/planning context 내부에는 reference의 학년 탭과 bulk edit table이 표시된다.
 2. `전체 / 1~6학년 / 미배정`, 모두 선택, 선택 인원, 변경 highlighting, Classroom filtering, inactive row 표현과 선택 작업 UI가 reference와 같은 흐름으로 동작한다.
 3. Global admin은 명시적으로 선택한 active School의 active 또는 planning SchoolYear에서 bulk를 수행할 수 있다.
-4. Current manager와 eligible planning manager는 자기 School active와 exact immediate planning context에서 bulk를 수행할 수 있다.
+4. Current manager는 자기 School active와 exact immediate planning context에서 bulk를 수행할 수 있고 eligible planning manager는 자기 exact immediate planning context에서만 수행할 수 있다.
 5. Ordinary teacher, 다른 School, archive, inactive School, malformed와 unauthorized SchoolYear context는 mutation control이 없고 direct request도 fail closed한다.
 6. Bulk create는 1..30 member annual Teacher만 만들며 protected field injection으로 manager/admin 또는 다른 SchoolYear User를 만들 수 없다.
 7. Gender/avatar input은 bulk UI에 추가하지 않고 server-side single-create 기본 avatar 정책을 적용한다.
@@ -227,4 +227,3 @@ Starter의 단건 `temporary_password.html.erb`와 bulk credentials table은 같
 - Focused service, policy와 request specs
 
 DB schema와 migration 변경은 예상하지 않는다.
-
