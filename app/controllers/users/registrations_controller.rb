@@ -38,10 +38,10 @@ class Users::RegistrationsController < Devise::RegistrationsController
   protected
 
   def update_resource(resource, params)
-    return super if password_change_params?(params)
+    filter_account_avatar_params!(resource, params)
+    return super if password_change_params?(params) || admin_email_change?(resource, params)
 
     params.delete(:current_password)
-    filter_account_avatar_params!(resource, params)
     resource.update_without_password(params)
   end
 
@@ -75,6 +75,10 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
   def password_change_params?(params)
     params[:password].present? || params[:password_confirmation].present?
+  end
+
+  def admin_email_change?(user, params)
+    user.admin? && params.key?(:email) && params[:email].to_s.strip.downcase != user.email
   end
 
   def password_update_params

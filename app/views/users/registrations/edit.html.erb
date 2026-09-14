@@ -61,7 +61,7 @@
                 label_html: { class: "mb-2 block text-sm font-medium text-slate-700" } %>
 
           <%= f.input :email,
-                required: true,
+                required: resource.email_required?,
                 input_html: {
                   autocomplete: "email",
                   class: "block w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
@@ -79,6 +79,18 @@
                   label_html: { class: "mb-2 block text-sm font-medium text-slate-700" } %>
           <% end %>
         </div>
+
+        <% if resource.admin? %>
+          <%= f.input :current_password,
+                required: false,
+                label: t("users.registrations.current_password"),
+                hint: t("users.registrations.email_change_password_hint"),
+                input_html: {
+                  autocomplete: "current-password",
+                  class: "block w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                },
+                label_html: { class: "mb-2 block text-sm font-medium text-slate-700" } %>
+        <% end %>
 
         <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
           <p class="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">

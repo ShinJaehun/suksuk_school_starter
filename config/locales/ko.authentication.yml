@@ -38,5 +38,7 @@ ko:
       submit: "비밀번호 변경"
       updated: "비밀번호를 변경했습니다."
     registrations:
+      current_password: "현재 비밀번호"
+      email_change_password_hint: "이메일을 변경할 때만 현재 비밀번호를 입력해 주세요."
       public_registration_disabled: "공개 회원가입은 제공하지 않습니다."
       account_deletion_disabled: "계정 삭제는 제공하지 않습니다."

@@ -40,6 +40,29 @@ RSpec.describe 'Users::Registrations', type: :request do
   end
 
   describe 'GET /users/edit' do
+    it 'keeps Teacher email optional and shows no email re-authentication field' do
+      sign_in teacher
+      get edit_user_registration_path
+
+      document = Nokogiri::HTML(response.body)
+      email = document.at_css('input[name="user[email]"]')
+      expect(email).to be_present
+      expect(email['required']).to be_nil
+      expect(document.at_css('input[name="user[current_password]"]')).to be_nil
+    end
+
+    it 'requires Admin email and offers a password field for email changes' do
+      sign_in admin
+      get edit_user_registration_path
+
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css('input[name="user[email]"]')['required']).to be_present
+      password = document.at_css('input[name="user[current_password]"]')
+      expect(password).to be_present
+      expect(password['required']).to be_nil
+      expect(response.body).to include(I18n.t('users.registrations.email_change_password_hint'))
+    end
+
     it 'allows teacher access' do
       sign_in teacher
 
@@ -78,6 +101,109 @@ RSpec.describe 'Users::Registrations', type: :request do
   end
 
   describe 'PATCH /users' do
+    ['text/html', 'text/vnd.turbo-stream.html, text/html, application/xhtml+xml'].each do |accept|
+      [nil, 'wrong-password'].each do |current_password|
+        it "rejects an Admin email change atomically with #{current_password.inspect} (#{accept})" do
+          sign_in admin
+          original = admin.attributes.slice('email', 'name', 'avatar_key', 'gender')
+
+          patch user_registration_path, params: {
+            user: { email: 'changed@example.com', name: '저장되면 안 됨', avatar_key: 'teacherF06',
+              gender: 'female', current_password: current_password }
+          }, headers: { 'ACCEPT' => accept }
+
+          expect(response).to have_http_status(:unprocessable_content)
+          expect(admin.reload.attributes.slice(*original.keys)).to eq(original)
+          expect(controller.send(:resource).errors[:current_password]).to be_present
+          document = Nokogiri::HTML(response.body)
+          expect(document.at_css('input[name="user[current_password]"]')).to be_present
+          expect(document.at_css('input[name="user[avatar_key]"]')).to be_present
+          expect(response.body).to include(edit_account_password_path)
+        end
+      end
+    end
+
+    it 'changes Admin email with the current password and uses it for subsequent authentication' do
+      sign_in admin
+      previous_email = admin.email
+
+      patch user_registration_path, params: {
+        user: { email: 'changed@example.com', name: '변경 관리자', avatar_key: 'teacherF06',
+          current_password: 'password123' }
+      }
+
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(admin.reload).to have_attributes(email: 'changed@example.com', name: '변경 관리자', avatar_key: 'teacherF06')
+      get edit_user_registration_path
+      expect(response).to have_http_status(:ok)
+      delete destroy_user_session_path
+      post user_session_path, params: { user: { email: previous_email, password: 'password123' } }
+      expect(response).to have_http_status(:unprocessable_content)
+      post user_session_path, params: { user: { email: 'changed@example.com', password: 'password123' } }
+      expect(response).to redirect_to(schools_path)
+      expect(controller.current_user).to eq(admin)
+    end
+
+    it 'keeps normalized identical Admin email updates passwordless' do
+      sign_in admin
+      previous_email = admin.email
+      patch user_registration_path, params: { user: { email: "  #{previous_email.upcase}  ", name: '수정 이름' } }
+
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(admin.reload).to have_attributes(email: previous_email, name: '수정 이름')
+    end
+
+    it 'keeps Admin profile updates passwordless when email is absent' do
+      sign_in admin
+      patch user_registration_path, params: { user: { name: '수정 이름', gender: 'female', avatar_key: 'teacherF06' } }
+
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(admin.reload).to have_attributes(name: '수정 이름', gender: 'female', avatar_key: 'teacherF06')
+    end
+
+    it 'still rejects blank Admin email even with the correct password' do
+      sign_in admin
+      original_email = admin.email
+      patch user_registration_path, params: { user: { email: '', current_password: 'password123' } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(admin.reload.email).to eq(original_email)
+      expect(controller.send(:resource).errors[:email]).to be_present
+    end
+
+    it 'filters a forbidden avatar even during an authenticated Admin email change' do
+      sign_in admin
+      original_avatar = admin.avatar_key
+      patch user_registration_path, params: {
+        user: { email: 'changed@example.com', current_password: 'password123', avatar_key: 'boy01', gender: 'invalid' }
+      }
+
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(admin.reload).to have_attributes(email: 'changed@example.com', avatar_key: original_avatar)
+      expect(admin.gender).not_to eq('invalid')
+    end
+
+    it 'saves a Teacher profile with no email and permits contact email changes without a password' do
+      teacher.update!(email: nil)
+      sign_in teacher
+      patch user_registration_path, params: { user: { name: '메일 없는 교사', email: '' } }
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(teacher.reload.name).to eq('메일 없는 교사')
+      expect(teacher.email).to be_blank
+
+      patch user_registration_path, params: { user: { email: 'contact@example.com' } }
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(teacher.reload.email).to eq('contact@example.com')
+
+      patch user_registration_path, params: { user: { email: 'updated-contact@example.com' } }
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(teacher.reload.email).to eq('updated-contact@example.com')
+
+      patch user_registration_path, params: { user: { name: '연락처 유지' } }
+      expect(response).to redirect_to(edit_user_registration_path)
+      expect(teacher.reload.email).to eq('updated-contact@example.com')
+    end
+
     it 'updates teacher profile attributes without requiring the current password' do
       sign_in teacher
 
