@@ -150,7 +150,7 @@ Manage link는 기존 `/schools/:id/planning`으로 이동한다. School show에
 
 ## 8. Planning cancellation
 
-Planning cancel은 이 작업에서 구현하지 않는다. Planning SchoolYear에는 annual Teacher, Classroom, HomeroomAssignment, credential event와 planning manager가 존재할 수 있으므로 단순 destroy로 정의하지 않는다. 필요하면 별도 bounded canonical spec과 human review를 거친다.
+Planning cancel은 이 UX polish 작업에서 구현하지 않는다. 후속 canonical contract와 구현 범위는 [Planning Year Cancellation](planning_year_cancellation.md)이 소유한다.
 
 ## 9. SchoolYear selector와 visual context
 
