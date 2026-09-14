@@ -1,5 +1,10 @@
 # Avatar: Default Asset + Custom Upload Spec
 
+> Historical / superseded: 이 문서는 과거 설계 기록이며 현재 구현 계약이 아니다.
+> 현재 preset avatar와 cleanup 계약은 [Final Starter Audit Hardening §7](../specs/final_starter_audit_hardening.md#7-deadstale-artifacts-cleanup),
+> 별도 Student 모델의 avatar 계약은 [Student Model Migration](../specs/student_model_migration.md)을 따른다.
+> 아래의 학생 User, `default_avatar_index`와 custom upload 요구를 현재 기능으로 해석하지 않는다.
+
 ## 1. Background
 
 현재 상태: - User 모델에는 아바타 개념이 존재하지 않음. - 학생 화면 및
