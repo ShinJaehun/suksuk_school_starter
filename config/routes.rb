@@ -92,7 +92,7 @@ Rails.application.routes.draw do
 
   resources :schools, only: %i[index show edit update] do
     resources :school_years, only: :create
-    resource :planning, only: :show, controller: "school_planning"
+    resource :planning, only: %i[show destroy], controller: "school_planning"
   end
   post "/schools/:school_id/planning/rollover",
     to: "school_rollovers#create",

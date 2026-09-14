@@ -33,5 +33,44 @@ class SchoolPlanningController < ApplicationController
     @rollover_eligibility = SchoolYears::RolloverEligibility.new(school_year: @planning_school_year)
     @rollover_error_key = @rollover_eligibility.error_key
     @can_rollover = policy(@school).rollover? && @rollover_eligibility.eligible?
+    @can_cancel_planning = policy(@planning_school_year).cancel?
+    @cancellation_summary = {
+      teacher_count: planning_teachers.count,
+      classroom_count: planning_classrooms.count
+    }
+  end
+
+  def destroy
+    @school = policy_scope(School).active.find(params[:school_id])
+    planning_year = @school.school_years.planning.find(positive_school_year_id!)
+    authorize planning_year, :cancel?
+
+    result = SchoolYears::CancelPlanning.call(
+      actor: current_user,
+      school: @school,
+      target_school_year_id: planning_year.id,
+      confirmation_year: params[:confirmation_year]
+    )
+
+    redirect_to school_path(@school),
+      notice: t("school_years.cancellation.success", year: result.year),
+      status: :see_other
+  rescue SchoolYears::CancelPlanning::InvalidState => error
+    redirect_to school_planning_path(@school),
+      alert: t("school_years.cancellation.errors.#{error.key}"),
+      status: :see_other
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed
+    redirect_to school_planning_path(@school),
+      alert: t("school_years.cancellation.errors.destruction_failed"),
+      status: :see_other
+  end
+
+  private
+
+  def positive_school_year_id!
+    value = params[:school_year_id].to_s
+    raise ActiveRecord::RecordNotFound unless value.match?(/\A[1-9]\d*\z/)
+
+    value.to_i
   end
 end

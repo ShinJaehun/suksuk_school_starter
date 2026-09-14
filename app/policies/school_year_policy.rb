@@ -15,6 +15,10 @@ class SchoolYearPolicy < ApplicationPolicy
       user.annual_school == record.school && record.year == user.school_year.year + 1
   end
 
+  def cancel?
+    admin? && record.persisted? && record.planning?
+  end
+
   private
 
   def planning_operator?

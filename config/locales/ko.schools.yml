@@ -39,6 +39,12 @@ ko:
         manager_ready: "다음 학년도 대표 선생님이 지정되었습니다."
         manager_required: "다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다."
         confirm: "%{current_year}학년도를 보관하고 %{next_year}학년도 운영을 시작할까요? 전환 후 %{manager} 선생님이 새 학년도 대표 선생님이 되며, 이 작업은 단순 취소로 되돌릴 수 없습니다."
+      cancellation:
+        title: "다음 학년도 준비 취소"
+        summary: "%{year}학년도 준비 자료와 선생님 %{teachers}명, 교실 %{classrooms}개를 삭제합니다."
+        warning: "준비 취소는 복구할 수 없으며 현재 학년도 운영 자료는 변경하지 않습니다."
+        confirmation_label: "확인을 위해 %{year}을 입력하세요"
+        submit: "다음 학년도 준비 취소"
     settings:
       title: "학교 설정"
       name_title: "학교 이름"
@@ -124,3 +130,14 @@ ko:
         manager_cardinality_invalid: "다음 학년도 대표 선생님 구성을 확인해 주세요."
         manager_credentials_invalid: "다음 학년도 대표 선생님의 계정 상태와 로그인 정보를 확인해 주세요."
         transition_failed: "학년도 운영 전환을 완료하지 못했습니다. 현재 상태를 확인해 주세요."
+    cancellation:
+      success: "%{year}학년도 준비를 취소했습니다."
+      errors:
+        inactive_school: "비활성 학교의 다음 학년도 준비는 취소할 수 없습니다."
+        active_school_year_missing: "현재 운영 학년도 구성을 확인해 주세요."
+        planning_school_year_mismatch: "취소할 준비 학년도 구성을 확인해 주세요."
+        non_consecutive_year: "현재 학년도의 바로 다음 준비 학년도만 취소할 수 있습니다."
+        confirmation_mismatch: "확인 학년도가 일치하지 않습니다."
+        students_present: "준비 교실에 예상하지 않은 학생 자료가 있어 취소할 수 없습니다."
+        external_credential_event: "준비 계정의 외부 자격증명 기록이 있어 취소할 수 없습니다."
+        destruction_failed: "다음 학년도 준비를 취소하지 못했습니다. 현재 상태를 확인해 주세요."

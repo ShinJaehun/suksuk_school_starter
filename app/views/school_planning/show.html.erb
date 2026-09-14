@@ -86,4 +86,35 @@
       <% end %>
     <% end %>
   </section>
+
+  <% if @can_cancel_planning %>
+    <section class="rounded-2xl border border-rose-300 bg-rose-50 p-5 shadow-sm">
+      <h2 class="text-lg font-bold text-rose-900"><%= t("schools.planning.cancellation.title") %></h2>
+      <p class="mt-2 text-sm text-rose-800">
+        <%= t(
+              "schools.planning.cancellation.summary",
+              year: @planning_school_year.year,
+              teachers: @cancellation_summary[:teacher_count],
+              classrooms: @cancellation_summary[:classroom_count]
+            ) %>
+      </p>
+      <p class="mt-2 text-sm font-semibold text-rose-900"><%= t("schools.planning.cancellation.warning") %></p>
+
+      <%= form_with url: school_planning_path(@school), method: :delete, class: "mt-4 space-y-3" do |form| %>
+        <%= form.hidden_field :school_year_id, value: @planning_school_year.id %>
+        <div>
+          <%= form.label :confirmation_year,
+                t("schools.planning.cancellation.confirmation_label", year: @planning_school_year.year),
+                class: "block text-sm font-semibold text-rose-900" %>
+          <%= form.text_field :confirmation_year,
+                inputmode: "numeric",
+                autocomplete: "off",
+                class: "mt-1 block w-full rounded-lg border border-rose-300 px-3 py-2 text-sm" %>
+        </div>
+        <%= form.submit t("schools.planning.cancellation.submit"),
+              data: { turbo_submits_with: t("ui.processing") },
+              class: "rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white" %>
+      <% end %>
+    </section>
+  <% end %>
 </section>
