@@ -3,7 +3,8 @@ class TeacherManagementPolicy < ApplicationPolicy
     def resolve
       return scope.teacher if user&.admin?
 
-      return scope.none unless user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
+      return scope.none unless user&.current_operational_manager? || user&.planning_manager_session_eligible?
+      return scope.teacher.where(school_year_id: user.school_year_id) if user.planning_manager_session_eligible?
 
       scope.teacher
            .joins(:school_year)
@@ -15,7 +16,11 @@ class TeacherManagementPolicy < ApplicationPolicy
     def resolve
       return scope.teacher.joins(:school_year).merge(SchoolYear.active) if user&.admin?
 
-      return scope.none unless user.is_a?(User) && user.school_operations_manager_for?(user.annual_school)
+      return scope.none unless user&.current_operational_manager? || user&.planning_manager_session_eligible?
+
+      if user.planning_manager_session_eligible?
+        return scope.teacher.where(school_year_id: user.school_year_id)
+      end
 
       scope.teacher
            .joins(:school_year)
@@ -28,7 +33,7 @@ class TeacherManagementPolicy < ApplicationPolicy
   end
 
   def access?
-    user&.admin? || school_operations_manager?
+    user&.admin? || school_operations_manager? || user&.planning_manager_session_eligible?
   end
 
   def create?

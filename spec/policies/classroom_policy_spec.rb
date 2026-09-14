@@ -111,7 +111,7 @@ RSpec.describe ClassroomPolicy do
       expect(described_class.new(manager, classroom).show?).to eq(false)
     end
 
-    it 'allows current and planning managers to read only their School archive' do
+    it 'allows only the current manager to read its School archive' do
       school = create(:school)
       active_year = create(:school_year, :active, school: school, year: 2026)
       archived_year = create(:school_year, :archived, school: school, year: 2025)
@@ -123,14 +123,14 @@ RSpec.describe ClassroomPolicy do
         login_id: 'planning-manager', school_role: 'manager')
       other_manager = annual_teacher(school: create(:school), school_role: 'manager')
 
-      [manager, planning_manager].each do |actor|
-        policy = described_class.new(actor, archived_classroom)
-        expect(policy.show?).to eq(true)
-        expect(policy.view_student_data?).to eq(true)
-        expect(policy.update?).to eq(false)
-        expect(policy.destroy?).to eq(false)
-        expect(policy.manage_members?).to eq(false)
-      end
+      policy = described_class.new(manager, archived_classroom)
+      expect(policy.show?).to eq(true)
+      expect(policy.view_student_data?).to eq(true)
+      expect(policy.update?).to eq(false)
+      expect(policy.destroy?).to eq(false)
+      expect(policy.manage_members?).to eq(false)
+      expect(described_class.new(planning_manager, archived_classroom).show?).to eq(false)
+      expect(described_class.new(planning_manager, archived_classroom).view_student_data?).to eq(false)
       expect(described_class.new(other_manager, archived_classroom).show?).to eq(false)
     end
   end
@@ -286,7 +286,7 @@ RSpec.describe ClassroomPolicy do
       end
     end
 
-    it "allows an eligible planning manager to manage its School active Classroom" do
+    it "rejects an eligible planning manager for its School active Classroom" do
       planning_year = create(:school_year, school: school, year: classroom.school_year.year + 1)
       planning_manager = create(:user, :teacher, school_year: planning_year,
         login_id: "planning-manager", school_role: "manager")
@@ -294,10 +294,10 @@ RSpec.describe ClassroomPolicy do
       policy = described_class.new(planning_manager, classroom)
       scope = described_class::Scope.new(planning_manager, Classroom).resolve
 
-      expect(policy.show?).to eq(true)
-      expect(policy.manage_structure?).to eq(true)
-      expect(policy.manage_members?).to eq(true)
-      expect(scope).to contain_exactly(classroom)
+      expect(policy.show?).to eq(false)
+      expect(policy.manage_structure?).to eq(false)
+      expect(policy.manage_members?).to eq(false)
+      expect(scope).to be_empty
       expect(scope).not_to include(other_classroom)
     end
 

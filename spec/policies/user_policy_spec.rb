@@ -57,12 +57,12 @@ RSpec.describe UserPolicy do
       expect(described_class.new(manager, create(:user, :admin)).deactivate_teacher?).to eq(false)
     end
 
-    it "lets an eligible planning manager change an active Teacher status in its School" do
+    it "does not let an eligible planning manager change an active Teacher status" do
       planning_year = create(:school_year, school: school, year: manager.school_year.year + 1)
       planning_manager = create(:user, :teacher, school_year: planning_year,
         login_id: "planning-manager", school_role: "manager")
 
-      expect(described_class.new(planning_manager, member).deactivate_teacher?).to eq(true)
+      expect(described_class.new(planning_manager, member).deactivate_teacher?).to eq(false)
       expect(described_class.new(planning_manager, planning_manager).deactivate_teacher?).to eq(false)
 
       archived_teacher = create(:user, :teacher,

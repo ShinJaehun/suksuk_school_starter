@@ -40,7 +40,7 @@ RSpec.describe User, type: :model do
       expect(manager).not_to be_current_operational_manager
     end
 
-    it "recognizes current and eligible planning managers only for their own School operations" do
+    it "recognizes only the current manager for School operations" do
       school = create(:school)
       active_year = create(:school_year, :active, school: school, year: 2026)
       planning_year = create(:school_year, school: school, year: 2027)
@@ -51,7 +51,7 @@ RSpec.describe User, type: :model do
       other_school = create(:school)
 
       expect(current_manager.school_operations_manager_for?(school)).to eq(true)
-      expect(planning_manager.school_operations_manager_for?(school)).to eq(true)
+      expect(planning_manager.school_operations_manager_for?(school)).to eq(false)
       expect(planning_manager.school_operations_manager_for?(other_school)).to eq(false)
 
       planning_manager.update!(school_role: "member")

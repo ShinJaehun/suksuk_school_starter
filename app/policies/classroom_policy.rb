@@ -36,6 +36,8 @@ class ClassroomPolicy < ApplicationPolicy
                     .where(school_years: { school_id: user.annual_school.id })
       end
 
+      return scope.where(school_year_id: user.school_year_id) if user&.planning_manager_session_eligible?
+
       super
     end
   end
@@ -54,7 +56,16 @@ class ClassroomPolicy < ApplicationPolicy
   end
 
   def create?
-    admin? || school_operations_manager?
+    return true if admin?
+    return false unless user.is_a?(User)
+    unless record.respond_to?(:school_year)
+      return user.current_operational_manager? || user.planning_manager_session_eligible?
+    end
+
+    school_year = record.school_year
+    return planning_structure_allowed? if school_year&.planning?
+
+    school_year&.active? && user.school_operations_manager_for?(school_year.school)
   end
 
   def new?
@@ -140,6 +151,7 @@ class ClassroomPolicy < ApplicationPolicy
     school_year = record.school_year
     return false unless school_year&.planning? && school_year.school.active?
     return true if admin?
+
     user.is_a?(User) && user.planning_preparation_operator_for?(school_year)
   end
 

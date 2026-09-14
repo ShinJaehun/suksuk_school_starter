@@ -31,8 +31,8 @@ RSpec.describe 'Teacher bulk management', type: :request do
   end
 
   it 'renders the source grade tabs and bulk controls at /admin/teachers' do
-    teacher = create(:user, :teacher, school_year: active_year, school_role: "member",
-                                      login_id: "avatar-bulk-teacher")
+    teacher = create(:user, :teacher, school_year: active_year, school_role: 'member',
+                                      login_id: 'avatar-bulk-teacher')
     sign_in current_manager
 
     get admin_teachers_path
@@ -44,7 +44,7 @@ RSpec.describe 'Teacher bulk management', type: :request do
     expect(document.at_css(%(form[action^="#{bulk_update_admin_teachers_path}"]))).to be_present
     expect(document.at_css('[data-management-filter-panel]')).to be_present
     name_input = document.at_css(%(input[name^="teachers[rows]"][name$="[name]"][value="#{teacher.name}"]))
-    expect(name_input&.parent&.at_css("img.h-8.w-8")).to be_present
+    expect(name_input&.parent&.at_css('img.h-8.w-8')).to be_present
   end
 
   it 'returns single-create credentials to the trusted bulk management context only' do
@@ -57,8 +57,8 @@ RSpec.describe 'Teacher bulk management', type: :request do
 
     get add_link['href']
     expect(Nokogiri::HTML(response.body).at_css(
-      'input[name="management_source"][value="admin"]'
-    )).to be_present
+             'input[name="management_source"][value="admin"]'
+           )).to be_present
 
     post teachers_path, params: context(active_year).merge(
       management_source: 'admin',
@@ -101,17 +101,28 @@ RSpec.describe 'Teacher bulk management', type: :request do
            )).to be_present
   end
 
-  it 'lets both managers open active and planning bulk setup while preserving context' do
-    [current_manager, planning_manager].each do |actor|
-      sign_in actor
-      [active_year, planning_year].each do |year|
-        get bulk_setup_admin_teachers_path, params: context(year)
-        expect(response).to have_http_status(:ok)
-        document = Nokogiri::HTML(response.body)
-        expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
-        expect(document.at_css(%(input[name="school_year_id"][value="#{year.id}"]))).to be_present
-      end
+  it 'lets the current manager open active and planning bulk setup' do
+    sign_in current_manager
+
+    [active_year, planning_year].each do |year|
+      get bulk_setup_admin_teachers_path, params: context(year)
+
+      expect(response).to have_http_status(:ok)
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css(%(input[name="school_id"][value="#{school.id}"]))).to be_present
+      expect(document.at_css(%(input[name="school_year_id"][value="#{year.id}"]))).to be_present
     end
+  end
+
+  it 'limits the planning manager bulk context to its planning year' do
+    active_year
+    sign_in planning_manager
+
+    get bulk_setup_admin_teachers_path, params: context(planning_year)
+    expect(response).to have_http_status(:ok)
+
+    get bulk_setup_admin_teachers_path, params: context(active_year)
+    expect(response).to have_http_status(:not_found)
   end
 
   it 'creates a batch and returns committed credentials with no-store' do

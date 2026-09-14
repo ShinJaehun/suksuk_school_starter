@@ -52,19 +52,14 @@ RSpec.describe 'Archived SchoolYear read-only access', type: :request do
     expect(document.at_css(%(a[href="#{classroom_members_path(archived_classroom)}"]))).to be_nil
   end
 
-  it 'lets the active planning manager read its School archive without mutation authority' do
+  it 'rejects the active planning manager reading its School archive' do
     sign_in planning_manager
 
     get teachers_path, params: context
-    expect(response).to have_http_status(:ok)
-    expect(response.body).to include(archived_teacher.name, I18n.t('admin.teachers.index.context_read_only'))
+    expect(response).to have_http_status(:not_found)
 
+    sign_in planning_manager
     get classroom_path(archived_classroom), params: context
-    expect(response).to have_http_status(:ok)
-
-    patch classroom_path(archived_classroom), params: context.merge(
-      classroom: { class_label: '변경 금지', grade: archived_classroom.grade }
-    )
     expect(response).to have_http_status(:not_found)
   end
 
