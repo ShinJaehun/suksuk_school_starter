@@ -429,7 +429,7 @@ class TeachersController < ApplicationController
   end
 
   def update_params
-    params.require(:user).permit(:name, :email, :login_id, :gender, :avatar_key)
+    params.require(:user).permit(:name, :email, :gender, :avatar_key)
   end
 
   def normalized_profile_attributes(permitted_params, current_avatar_key: nil)

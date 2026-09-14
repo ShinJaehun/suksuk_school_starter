@@ -597,6 +597,28 @@ RSpec.describe 'Teacher operations', type: :request do
     expect(document.at_css(%(select[name="classroom_id"] option[value="#{classroom.id}"][selected]))).to be_present
   end
 
+  %w[active planning].each do |status|
+    it "preserves the individual login ID on a forged #{status} PATCH with explicit SchoolYear context" do
+      sign_in manager
+      year = if status == 'active'
+               manager.school_year
+             else
+               create(:school_year, school: school, year: manager.school_year.year + 1)
+             end
+      teacher = create(:user, :teacher, school_year: year, school_role: 'member',
+        grade: 4, login_id: 'original-login')
+
+      patch teacher_path(teacher), params: {
+        school_id: school.id, school_year_id: year.id,
+        membership_grade: 4, classroom_id: '',
+        user: { name: '수정된 이름', login_id: 'forged-login' }
+      }
+
+      expect(response).to have_http_status(:see_other)
+      expect(teacher.reload).to have_attributes(name: '수정된 이름', login_id: 'original-login')
+    end
+  end
+
   it 'moves and removes a single classroom assignment' do
     teacher = annual_teacher(school: school, grade: 4)
     first = create(:classroom, annual_school: school, grade: 4, teacher: teacher)
