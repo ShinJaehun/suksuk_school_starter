@@ -6,6 +6,7 @@
 - [ ] 현재 이미지의 rollback tag를 보존했다.
 - [ ] `docker compose ... config --quiet`가 성공한다.
 - [ ] app port가 `127.0.0.1:3000`에만 bind된다.
+- [ ] 새 web image의 log에서 자동 `db:prepare` 성공 후 Puma 시작을 확인했다. 준비 실패 시 Puma는 시작하지 않는다.
 
 ## Backup
 

@@ -31,6 +31,8 @@ docker compose -p suksuk_school_starter --env-file .env -f compose.prod.yml up -
 
 `app:bootstrap`은 최초 설정 전용이며 일반 재배포에서는 실행하지 않는다.
 
+Single web-container의 기본 `bundle exec puma -C config/puma.rb` 시작은 entrypoint에서 먼저 같은 image의 `bin/rails db:prepare`를 실행한다. 빈 DB는 schema를 준비하고 기존 DB는 pending migration을 적용하며, 준비가 실패하면 nonzero exit로 종료하고 Puma를 시작하지 않는다. 이미 준비된 DB의 재시작도 이 경로를 따른다. 기존 `./bin/rails server`도 동일하며 console/shell/개별 task에는 자동 preparation을 추가하지 않는다. 위 최초 수동 preparation은 관리자 bootstrap 전에 schema를 준비하기 위한 절차다.
+
 ## 일반 재배포
 
 1. commit SHA 기반 immutable tag와 `latest`를 동일 이미지로 build/push한다.
@@ -44,8 +46,8 @@ docker compose -p suksuk_school_starter --env-file .env -f compose.prod.yml up -
 4. 일관된 백업이 필요하면 web을 중지한다.
 5. PostgreSQL dump와 Active Storage 파일을 백업한다.
 6. DB 백업은 gzip 무결성을, 파일 백업은 tar 목록을 확인하고 각각 SHA256을 기록한다.
-7. migration이 있을 때만 새 이미지로 `bin/rails db:prepare`를 실행한다.
-8. web container를 새 이미지로 recreate한다.
+7. 필요하면 새 이미지로 `bin/rails db:prepare`를 수동 preflight한다. 일반 재배포의 필수 수작업은 아니다.
+8. web container를 새 이미지로 recreate하고 log에서 자동 `db:prepare` 성공 후 Puma가 시작됐는지 확인한다. 준비 실패 시 원인을 해결한 뒤 재시작하며 `app:bootstrap`을 재실행하지 않는다.
 9. 실행 중인 container의 image ID가 배포 대상과 일치하는지 확인한다.
 10. HTTPS/HSTS, reverse proxy host 처리, 로그인, Action Cable WebSocket과 Turbo realtime 갱신을 smoke test한다.
 
