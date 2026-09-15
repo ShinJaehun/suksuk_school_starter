@@ -1,6 +1,8 @@
 require 'rails_helper'
 
 RSpec.describe HomeroomAssignment, type: :model do
+  include ActiveSupport::Testing::TimeHelpers
+
   def teacher_for(classroom, **attributes)
     create(:user, :teacher, :active_annual_teacher,
            annual_school: classroom.school_year.school,
@@ -130,6 +132,52 @@ RSpec.describe HomeroomAssignment, type: :model do
 
     expect(assignment.reload.ended_on).to be_nil
     expect(assignment.teacher.reload).to be_inactive
+  end
+
+  it 'deletes a future-start assignment when the teacher is deactivated after a February rollover' do
+    travel_to Time.zone.local(2027, 2, 1) do
+      school = create(:school)
+      create(:school_year, :active, school: school, year: 2026)
+      planning_year = create(:school_year, school: school, year: 2027)
+      create(:user, :teacher, school_year: planning_year, school_role: 'manager',
+                             login_id: 'deactivation-rollover-manager')
+      teacher = create(:user, :teacher, school_year: planning_year, school_role: 'member',
+                                       login_id: 'deactivation-rollover-teacher', grade: 4)
+      classroom = create(:classroom, school_year: planning_year, grade: 4)
+      assignment = create(:homeroom_assignment, teacher: teacher, classroom: classroom,
+                                                started_on: Date.new(2027, 3, 1))
+
+      expect(planning_year).to be_planning
+      expect(assignment.reload.started_on).to eq(Date.new(2027, 3, 1))
+
+      SchoolYears::Rollover.call(school: school, target_school_year_id: planning_year.id)
+      expect(planning_year.reload).to be_active
+      travel_to Time.zone.local(2027, 2, 15)
+
+      expect(teacher.reload.update(active: false)).to eq(true)
+
+      expect(teacher.reload).to be_inactive
+      expect(HomeroomAssignment.exists?(assignment.id)).to eq(false)
+      expect(teacher.homeroom_assignments).to be_empty
+      expect(teacher.assigned_classroom).to be_nil
+    end
+  end
+
+  it 'keeps ended history when a teacher with a started active assignment is deactivated' do
+    travel_to Time.zone.local(2027, 3, 15) do
+      assignment = create(:homeroom_assignment, started_on: Date.new(2027, 3, 1))
+      teacher = assignment.teacher
+
+      expect(assignment.classroom.school_year).to be_active
+      expect(teacher.update(active: false)).to eq(true)
+
+      expect(teacher.reload).to be_inactive
+      expect(assignment.reload).to have_attributes(
+        started_on: Date.new(2027, 3, 1), ended_on: Date.current
+      )
+      expect(teacher.homeroom_assignments).to contain_exactly(assignment)
+      expect(teacher.assigned_classroom).to be_nil
+    end
   end
 
   it 'rejects an end date before its start date' do

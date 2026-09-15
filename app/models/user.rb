@@ -164,7 +164,7 @@ class User < ApplicationRecord
     return unless assignment
     return if assignment.classroom.school_year.archived?
 
-    if assignment.classroom.school_year.planning?
+    if assignment.classroom.school_year.planning? || assignment.started_on > Date.current
       assignment.destroy!
     else
       assignment.update!(ended_on: Date.current)
