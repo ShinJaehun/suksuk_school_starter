@@ -2,11 +2,21 @@
 
 ## 상태와 범위
 
-- 상태: human review 반영 및 canonical audit spec 확정. 구현은 별도 run에서 진행하며 이번 run은 문서 수정만 수행한다.
-- 검토 기준: `main` / `79b194bc48fbfc8a077586a8bd8243aab5b36945`.
-- 작업 브랜치: `fix/final-starter-audit-hardening`; 시작 시 working tree clean 확인.
+- 현재 상태: 아래 7개 항목은 후속 implementation에서 완료됐다. Full baseline 문서 현행화 기준은 `main` / `7093d38`이다.
+- Audit 당시 검토 기준: `main` / `79b194bc48fbfc8a077586a8bd8243aab5b36945`.
+- Audit 당시 작업 브랜치: `fix/final-starter-audit-hardening`; 시작 시 working tree clean 확인.
 - 목적: 최종 audit의 운영·인증·배포·계약 잔여 문제 7개만 닫고 School Starter baseline을 마감한다.
-- 이번 run은 문서만 작성한다. dependency update, runtime/test 변경, migration, 삭제/archive는 후속 승인된 run의 책임이다.
+- 아래 finding, 기준 HEAD의 증거와 “이번 run에서는 구현하지 않는다”, “후속 run에서 구현” 등의 표현은 audit spec 작성 당시의 기록이다. 현재 미구현 목록으로 해석하지 않으며 당시 finding과 검증 한계는 보존한다.
+
+후속 implementation 완료 항목:
+
+- Dependency/security hardening
+- User/Student principal isolation
+- Production Docker DB preparation
+- Individual Teacher `login_id` immutability
+- Admin email 변경 re-authentication
+- Rollover manager credential fail-closed
+- Stale account/avatar artifact cleanup
 
 관련 기준은 [현재 시스템](../architecture/current_system.md), [역할과 권한](../architecture/roles_and_permissions.md), [RSpec 전략](../testing/rspec_strategy.md)이다. Admin/Teacher는 Devise `User`, Student는 Classroom에 직접 속하는 별도 `Student`와 Rails session/PIN 구조를 유지한다. Controller/policy authority와 canonical lifecycle source는 바꾸지 않는다.
 

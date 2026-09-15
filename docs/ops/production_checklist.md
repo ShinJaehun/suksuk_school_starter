@@ -8,6 +8,11 @@
 - [ ] app port가 `127.0.0.1:3000`에만 bind된다.
 - [ ] 새 web image의 log에서 자동 `db:prepare` 성공 후 Puma 시작을 확인했다. 준비 실패 시 Puma는 시작하지 않는다.
 
+## SchoolYear reconciliation scheduler
+
+- [ ] Production scheduler에 `bin/rails school_years:reconcile_rollovers`가 최소 하루 1회 실행되도록 등록했다.
+- [ ] 배포 후 scheduler 실행 기록 또는 안전한 수동 invocation과 log로 reconciliation task 실행 경로를 확인했다.
+
 ## Backup
 
 - [ ] PostgreSQL과 Active Storage를 백업했다.

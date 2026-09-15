@@ -33,6 +33,14 @@ docker compose -p suksuk_school_starter --env-file .env -f compose.prod.yml up -
 
 Single web-container의 기본 `bundle exec puma -C config/puma.rb` 시작은 entrypoint에서 먼저 같은 image의 `bin/rails db:prepare`를 실행한다. 빈 DB는 schema를 준비하고 기존 DB는 pending migration을 적용하며, 준비가 실패하면 nonzero exit로 종료하고 Puma를 시작하지 않는다. 이미 준비된 DB의 재시작도 이 경로를 따른다. 기존 `./bin/rails server`도 동일하며 console/shell/개별 task에는 자동 preparation을 추가하지 않는다. 위 최초 수동 preparation은 관리자 bootstrap 전에 schema를 준비하기 위한 절차다.
 
+## SchoolYear reconciliation scheduler
+
+Production scheduler에 `bin/rails school_years:reconcile_rollovers`를 **최소 하루 1회** 실행하도록 등록한다. 정확히 target year의 3월 1일 00:00에 실행할 필요는 없다. Downtime 이후 첫 실행에서는 아직 automatic attempt가 없는 overdue target을 catch-up한다. 이미 시도한 target은 자동 재시도하지 않으며, 상세 계약은 [SchoolYear rollover calendar](../specs/school_year_rollover_calendar.md)를 따른다.
+
+Scheduler 구현 방식과 등록은 cron, systemd timer, container scheduler 등 deployment concern이다. 이 기능만을 위해 Solid Queue나 generic background-job framework를 도입하지 않는다. Reconciliation은 전용 Rake task로 실행하며 일반 HTTP request에서는 실행하지 않는다.
+
+배포 후 scheduler 실행 기록 또는 안전한 수동 invocation과 log로 task 실행 경로를 확인한다. 수동 invocation도 동일한 reconciliation을 수행하므로 실제 rollover와 automatic attempt 소진이 일어날 수 있음을 확인하고 실행한다.
+
 ## 일반 재배포
 
 1. commit SHA 기반 immutable tag와 `latest`를 동일 이미지로 build/push한다.

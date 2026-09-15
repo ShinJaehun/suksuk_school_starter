@@ -36,8 +36,9 @@ Teacher 0..1 ↔ 0..1 Classroom
 ```
 
 - Teacher와 Classroom은 같은 SchoolYear와 grade여야 한다.
-- active assignment 변경은 종료 이력을 보존하고, planning assignment 변경은 준비 데이터를 교체한다.
-- Teacher 비활성화는 current assignment를 종료하며 재활성화 때 자동 복원하지 않는다.
+- 이미 시작된 active assignment(`started_on <= Date.current`)의 변경·해제는 `ended_on` 종료 이력을 보존한다.
+- Planning assignment는 준비 데이터이므로 변경·해제 시 제거한다. 2월 rollover 후 active context에서도 `started_on > Date.current`인 assignment는 아직 실제 운영 이력이 아니므로 종료일을 기록하지 않고 제거한다. 교체로 만드는 새 active assignment는 기존대로 `Date.current`에 시작한다.
+- Teacher 비활성화도 위 assignment release semantics를 따르며, 재활성화 때 이전 assignment를 자동 복원하지 않는다.
 - Classroom 비활성화는 Student와 assignment/history를 삭제하지 않고 운영을 잠근다.
 
 ## 운영 surface

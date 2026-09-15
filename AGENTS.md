@@ -60,6 +60,7 @@
 - view에서 직접 복잡한 권한 조건을 늘리지 않는다.
 - Teacher와 Classroom의 현재·과거 담임 관계는 `HomeroomAssignment`를 canonical source로 사용한다. `ended_on IS NULL`인 row가 현재 담임이다.
 - Classroom의 학교와 학년도는 `Classroom.school_year.school`, `Classroom.school_year`를 기준으로 하고 반 식별자는 `Classroom.class_label`을 사용한다.
+- SchoolYear-aware 기능을 추가하기 전에 데이터의 귀속 SchoolYear와 active/planning/archived별 read/write authority를 명시한다. SchoolYear에 귀속되지 않는 데이터는 School-level 또는 global ownership인 이유를 명확히 하며, 이 판단 없이 active year에 묶거나 현재 User의 SchoolYear를 암묵적으로 재사용하지 않는다.
 - 교사의 현재 학교, 학교 역할과 학년은 각각 `User.school_year.school`, `User.school_role`, `User.grade`를 기준으로 한다.
 - teacher의 학교 소속과 권한에는 별도 membership model을 두지 않는다.
 - 현재 runtime의 학생 소속과 lifecycle source는 `Student.classroom_id`와 `Student.active`다.

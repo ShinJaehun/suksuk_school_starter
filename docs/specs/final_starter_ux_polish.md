@@ -150,7 +150,7 @@ Manage link는 기존 `/schools/:id/planning`으로 이동한다. School show에
 
 ## 8. Planning cancellation
 
-Planning cancel은 이 UX polish 작업에서 구현하지 않는다. 후속 canonical contract와 구현 범위는 [Planning Year Cancellation](planning_year_cancellation.md)이 소유한다.
+Planning cancel은 이 UX polish 작업에서는 non-goal이었다. 이후 별도 [Planning Year Cancellation](planning_year_cancellation.md) canonical spec에 따라 runtime 구현이 완료됐다.
 
 ## 9. SchoolYear selector와 visual context
 
@@ -263,7 +263,7 @@ School filter와 SchoolYear/filter form이 dependent context 때문에 나뉘어
 
 ## Explicit non-goals
 
-- Planning cancellation implementation
+- Planning cancellation implementation — 이 UX polish 작업의 non-goal이며, 이후 [Planning Year Cancellation](planning_year_cancellation.md)과 runtime에서 완료됐다.
 - Rollover reversal/recovery
 - Archived Teacher authentication
 - Historical reporting redesign

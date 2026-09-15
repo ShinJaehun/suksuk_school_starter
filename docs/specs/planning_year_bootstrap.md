@@ -368,7 +368,8 @@ Teacher와 Classroom 준비 뒤 기존 `/teachers` surface의 명시적인 plann
 - Planning assignment는 아직 실제 운영 이력이 아니다. 연결 변경은 기존 planning assignment를 삭제하고 새 assignment를 만드는 작업을 하나의 transaction으로 수행한다.
 - Planning 중 해제는 기존 planning assignment를 삭제하며 `ended_on` history를 만들지 않는다.
 - 이미 같은 연결이면 row를 다시 만들지 않는 idempotent success로 처리할 수 있다.
-- Active-year의 기존 HomeroomAssignment 연결·변경·해제와 `ended_on` history semantics는 변경하지 않는다. Planning 전용 삭제 semantics가 active operation으로 번지지 않게 별도의 operation boundary를 유지한다.
+- Target year의 2월 1일부터 rollover할 수 있으므로 active context에서도 `started_on > Date.current`인 assignment가 남을 수 있다. 이 관계는 아직 실제 운영 이력이 아니며 변경·해제 시 기존 row를 삭제한다. 새 active assignment는 기존대로 `started_on = Date.current`로 만든다.
+- 이미 시작된 active assignment(`started_on <= Date.current`)는 변경·해제 시 기존대로 `ended_on = Date.current`로 종료 이력을 남긴다. DB/model의 `ended_on >= started_on` 불변식, `started_on` 불변성, 종료된 history의 immutability와 archived read-only 계약은 유지한다. 새 lifecycle이나 status를 추가하지 않는다.
 
 단건 assignment operation은 한 요청에서 하나의 Teacher를 대상으로 한다. 여러 Teacher의 연결을 제출하는 경우에는 [`teacher_bulk_management.md`](teacher_bulk_management.md)의 공통 bulk update contract만 사용하며, 별도 planning assignment engine이나 route를 만들지 않는다.
 
@@ -396,7 +397,7 @@ Planning은 수정 가능한 준비 context지만 archived data처럼 보존이 
 ### HomeroomAssignment
 
 - Planning 연결 변경과 해제는 current row를 삭제하며 ended history를 만들지 않는다.
-- Rollover로 SchoolYear가 active가 된 뒤에는 해당 assignment가 실제 운영 이력이므로 planning 삭제 semantics를 적용하지 않는다.
+- Rollover 후에도 아직 시작일이 미래인 current assignment는 변경·해제 시 삭제한다. 이미 시작된 active assignment만 종료 이력을 보존하며, 교체로 만드는 새 active assignment는 기존 active context의 당일 시작 semantics를 따른다.
 - Planning SchoolYear가 active 또는 archived로 바뀐 stale form은 mutation하지 못한다.
 
 ## Transaction, locking과 atomicity

@@ -2,7 +2,7 @@
 
 ## 목적과 범위
 
-이 문서는 target planning SchoolYear Y의 수동 rollover 시작일, system의 자동 시도, 전환 지연 표시와 global admin 복구에 대한 focused canonical spec이다. 확정 정책을 문서화하며 runtime, migration과 spec test 구현은 별도 run에서 진행한다.
+이 문서는 target planning SchoolYear Y의 수동 rollover 시작일, system의 자동 시도, 전환 지연 표시와 global admin 복구에 대한 focused canonical spec이다. 현재 manual calendar guard, 자동 시도 persistence와 reconciliation task, overdue recovery 및 durable at-most-once regression을 포함한 runtime, migration과 spec test 구현이 완료됐다. Production scheduler 등록은 deployment concern으로 남는다.
 
 기존 [Planning bootstrap B9/B10](planning_year_bootstrap.md#actual-schoolyear-rollover-contract)의 structural validation, manager eligibility, locking/transaction과 authority 승계를 유지한다. 이 문서가 기존 B10의 날짜 제한 없음 및 자동·날짜 기반 rollover 제외 계약을 대체한다. Manager credential safety는 [Final Starter Audit Hardening §6](final_starter_audit_hardening.md#6-planning-rollover-manager-fail-closed)을 따른다.
 
@@ -58,7 +58,7 @@ Y-03-01부터 system은 아직 자동 시도가 없는 target planning SchoolYea
 - 수동 실행은 자동 시도 기회를 소진하지 않으며, 자동 시도 소진도 수동 실행을 막지 않는다. 수동 성공으로 이미 active가 된 target은 자동 전환 대상이 아니다.
 - 수동·자동 실행 경합에서도 기존 lock과 status 재검증으로 부분 전환이나 이중 전환을 막는다. 이미 완료된 pair의 stale request는 기존대로 fail closed한다.
 
-정확한 scheduler/cron/job wiring, persistence field/table와 중복 방지 구현은 후속 implementation 선택으로 남긴다. 단, 위 durable 보장과 전환 실패 시 status 보존은 필수다. 시도 기록은 SchoolYear lifecycle status나 generic audit framework가 아니다.
+현재 `SchoolYears::AutomaticRollover`는 School과 target SchoolYear를 lock한 transaction에서 `SchoolYear#automatic_rollover_attempted_at`을 기록하고 commit한 뒤 canonical `SchoolYears::Rollover`를 호출한다. 이 기록으로 중복 진입을 방지하며 전환 실패나 process 중단 뒤에도 시도 소진을 보존한다. 기존 transaction 안에서의 자동 시도 호출은 거부한다. `school_years:reconcile_rollovers` Rake task가 아직 시도하지 않은 overdue planning target을 처리하며, scheduler wiring만 deployment concern이다. 시도 기록은 SchoolYear lifecycle status나 generic audit framework가 아니다.
 
 ### Production scheduler 운영 계약
 
@@ -123,7 +123,7 @@ Overdue여도 global admin은 기존 planning workspace에서 다음 recovery op
 16. Rollover 후 기존 planning manager가 같은 annual User/role로 current operational manager가 되어 새 active-year Teacher/Classroom을 관리하고 이전 manager는 operational authority를 잃는다.
 17. 각 target year의 Y-02-01 guard 때문에 아직 시작일이 오지 않은 미래 연도로 연속 rollover할 수 없다.
 
-후속 구현 검증은 날짜 경계, domain/direct request 거부, 자동 중복·실패 기록 보존·장애·수동 경합, overdue recovery와 기존 authority 승계를 중심으로 한다. 이번 문서 run에서는 코드/spec test를 수정하거나 테스트를 실행하지 않는다.
+날짜 경계, domain/direct request 거부, 자동 중복·실패 기록 보존·장애·수동 경합, overdue recovery와 기존 authority 승계에 대한 regression이 구현됐다. Production scheduler 등록과 배포 후 실행 경로 확인은 [OCI 배포 문서](../ops/deploy_oci.md#schoolyear-reconciliation-scheduler)와 [운영 checklist](../ops/production_checklist.md#schoolyear-reconciliation-scheduler)를 따른다.
 
 ## Non-goals
 
