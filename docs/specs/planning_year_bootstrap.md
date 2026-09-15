@@ -4,7 +4,7 @@
 
 이 문서는 다음 planning SchoolYear의 annual teacher User, Classroom과 HomeroomAssignment 준비, B10 actual SchoolYear rollover, B11 archived read-only authority와 B12 planning-manager collaboration의 canonical contract를 정의한다. B10 이전의 preparation operation은 active SchoolYear를 변경하지 않는다.
 
-Rollover 날짜 guard, system automatic attempt와 overdue planning recovery의 primary canonical source는 [`school_year_rollover_calendar.md`](school_year_rollover_calendar.md)다. 해당 문서는 B10의 기존 날짜 제한 없음 및 자동·날짜 기반 rollover 제외 계약을 대체하며 기존 transition invariant는 유지한다.
+Rollover의 manual-only 실행, 날짜 guard와 overdue planning recovery의 primary canonical source는 [`school_year_rollover_calendar.md`](school_year_rollover_calendar.md)다. Global admin의 명시적인 수동 실행만 허용하며 기존 transition invariant는 유지한다.
 
 예를 들어 2026 active와 2027 planning이 함께 있을 때 planning mutation은 2027 준비 data에 한정된다. Planning은 rollover 전 staging이자 safety boundary다. Teacher/Classroom CRUD를 복제한 generic planning workspace나 독립된 제품 hierarchy는 만들지 않되, SchoolYear 전체 준비 상태와 cross-resource operation을 모으는 얇은 다음 학년도 준비 페이지를 둔다. Global admin은 모든 School의 운영 관리자이고 current operational manager는 자기 School의 운영 관리자다. Active planning manager는 자기 exact immediate planning SchoolYear의 preparation actor이며 active SchoolYear operational authority를 얻지 않는다.
 
@@ -76,7 +76,7 @@ Planning context에서는 해당 문서의 공통 bulk workflow를 exact immedia
 
 Planning manager 지정은 teacher bootstrap 뒤의 별도 B7 단계다. 새 successor/proposal model이나 상태를 만들지 않고 planning SchoolYear의 annual Teacher `school_role` (`member`/`manager`)을 canonical source로 사용한다.
 
-Current operational manager는 자기 School의 다음 학년도 준비와 인수인계를 책임진다. 현재 manager A가 planning SchoolYear와 annual Teacher를 준비하고 다음 manager B를 지정하면 A와 B가 같은 planning preparation authority로 공동 준비한다. Global admin은 전체 School을 감독하고 필요하면 planning manager를 지정·교체·해제하며 수동 actual rollover는 계속 global admin만 실행한다. System automatic attempt는 calendar spec을 따른다.
+Current operational manager는 자기 School의 다음 학년도 준비와 인수인계를 책임진다. 현재 manager A가 planning SchoolYear와 annual Teacher를 준비하고 다음 manager B를 지정하면 A와 B가 같은 planning preparation authority로 공동 준비한다. Global admin은 전체 School을 감독하고 필요하면 planning manager를 지정·교체·해제하며 actual rollover는 global admin의 명시적인 수동 실행으로만 수행한다.
 
 - Global admin은 active School의 명시적으로 선택되고 server-side로 승인된 planning SchoolYear에서 manager를 지정·교체·해제할 수 있다. Current operational manager도 자기 active School의 exact immediate planning SchoolYear에서 같은 operation을 수행할 수 있다. Planning manager 자신, ordinary teacher와 그 밖의 actor는 수행할 수 없다.
 - Target은 해당 School과 planning SchoolYear에 속한 active `role: teacher` annual User여야 한다. Inactive Teacher, 다른 School, active/archived SchoolYear의 Teacher와 admin User 등 non-teacher는 target scope에 포함하지 않는다.
@@ -143,11 +143,11 @@ Planning manager는 rollover 전 operational authority가 아니다. Rollover가
 
 Preparation page는 기존 정보성 count를 유지하면서 향후 작은 `운영 전환 조건` 영역에서 manager 지정 여부만 eligibility 조건으로 구분할 수 있다. Manager가 없으면 `다음 학년도 운영을 시작하려면 대표 선생님을 지정해야 합니다.`에 해당하는 localized 안내를 표시하고, Teacher/Classroom/Homeroom count를 완료/실패 checklist로 바꾸지 않는다. B9에서는 rollover button을 추가하지 않는다.
 
-B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, locking과 transaction ordering, active → archived 및 planning → active transition과 failure rollback은 이 문서의 B10 actual rollover contract에서 정의한다. Calendar guard·자동 시도·전환 전 planning recovery는 calendar spec을 따르며 완료된 rollover reversal과 별도 audit 확장은 범위 밖이다.
+B9는 target eligibility만 정의한다. 실제 실행 actor, confirmation UX, locking과 transaction ordering, active → archived 및 planning → active transition과 failure rollback은 이 문서의 B10 actual rollover contract에서 정의한다. Manual-only 실행, calendar guard와 전환 전 planning recovery는 calendar spec을 따르며 완료된 rollover reversal과 별도 audit 확장은 범위 밖이다.
 
 ## Actual SchoolYear rollover contract
 
-B10 actual rollover는 B9 business eligibility와 structural safety 및 calendar spec의 날짜 guard를 통과한 School의 annual lifecycle을 전환하는 operation이다. 수동 실행 권한은 global admin에게만 있으며 system automatic attempt도 같은 canonical `SchoolYears::Rollover` transition을 사용한다. Current operational manager는 planning data를 준비할 수 있지만 SchoolYear lifecycle을 전환할 수 없으며 ordinary teacher와 planning Teacher도 실행할 수 없다.
+B10 actual rollover는 B9 business eligibility와 structural safety 및 calendar spec의 날짜 guard를 통과한 School의 annual lifecycle을 전환하는 operation이다. Global admin의 명시적인 수동 실행만 허용하며 canonical `SchoolYears::Rollover` transition을 사용한다. Current operational manager는 planning data를 준비할 수 있지만 SchoolYear lifecycle을 전환할 수 없으며 ordinary teacher와 planning Teacher도 실행할 수 없다.
 
 정상 transition은 정확히 다음 두 status 변경이다.
 
@@ -160,7 +160,7 @@ Planning manager의 `school_role`을 복사하거나 새 User를 만들지 않�
 
 ### Transaction과 locking
 
-Rollover는 하나의 DB transaction에서 수행한다. School, current active SchoolYear, target planning SchoolYear 순서로 lock하고, lock 이후 B9 structural safety와 manager exactly one business eligibility, manager credential safety 및 calendar guard를 다시 검증한다. 검증을 통과한 뒤 같은 transaction에서 current active를 archived로, target planning을 active로 변경한다. 두 status 변경 중 하나라도 실패하거나 transaction 도중 invariant가 달라지면 전체 rollback하며 부분 전환을 허용하지 않는다. 자동 시도 소진 기록은 이 rollback으로 사라지지 않도록 calendar spec의 durable at-most-once 계약을 따른다.
+Rollover는 하나의 DB transaction에서 수행한다. School, current active SchoolYear, target planning SchoolYear 순서로 lock하고, lock 이후 B9 structural safety와 manager exactly one business eligibility, manager credential safety 및 calendar guard를 다시 검증한다. 검증을 통과한 뒤 같은 transaction에서 current active를 archived로, target planning을 active로 변경한다. 두 status 변경 중 하나라도 실패하거나 transaction 도중 invariant가 달라지면 전체 rollback하며 부분 전환을 허용하지 않는다.
 
 다음 상태는 fallback이나 성공 처리 없이 fail closed한다.
 
@@ -179,7 +179,7 @@ Repeated request는 이미 완료된 transition을 idempotent success로 가장�
 
 ### 날짜와 실행 UX
 
-Target planning SchoolYear Y의 수동 rollover는 Y-02-01부터 가능하며 global admin도 우회할 수 없다. Canonical transition의 server-side boundary에서 날짜와 기존 eligibility를 모두 검증한다. Planning 생성과 준비에는 이 날짜 제한을 적용하지 않는다. Y-03-01 이후 첫 lifecycle reconciliation 기회에는 미시도 target에 대해 기존 transition으로 한 번 자동 시도하며, 실패 후 자동 재시도하지 않는다. Durable at-most-once, derived overdue와 global admin recovery는 [calendar spec](school_year_rollover_calendar.md)을 따른다. 미래 연도 검증을 위한 production time-travel helper나 debug endpoint를 만들지 않는다.
+Target planning SchoolYear Y의 수동 rollover는 Y-02-01부터 가능하며 global admin도 우회할 수 없다. Canonical transition의 server-side boundary에서 날짜와 기존 eligibility를 모두 검증한다. Planning 생성과 준비에는 이 날짜 제한을 적용하지 않는다. 각 target Y마다 Y-02-01 guard를 적용하므로 아직 시작일이 오지 않은 미래 학년도로 연속 rollover할 수 없다. 현재 날짜가 Y-03-01 이상이고 target Y가 여전히 planning이면 `rollover_overdue?` derived warning을 표시한다. 이는 전환 지연 안내이며 새 persisted status나 자동 실행 조건이 아니다. Global admin이 현재 blocker를 복구한 뒤 기존 수동 rollover를 실행한다. 상세 날짜 경계와 overdue recovery는 [calendar spec](school_year_rollover_calendar.md)을 따른다. 미래 연도 검증을 위한 production time-travel helper나 debug endpoint를 만들지 않는다.
 
 Global admin의 planning preparation page는 Y-02-01 전 rollover action을 활성화하지 않고 시작일을 안내한다. 날짜와 기존 eligibility를 충족한 수동 실행 전에 명확한 confirmation을 요구한다. Confirmation은 현재 학년도가 archived되고 다음 학년도가 active가 되며 새 학년도 manager가 운영 권한을 얻고 단순 취소/undo 기능은 제공되지 않는다는 의미를 전달한다. Y-03-01 이후 planning이 유지되면 지연 경고와 현재 blocker 및 기존 recovery 진입점을 제공한다. 정확한 사용자 문구는 locale에서 관리한다.
 
@@ -198,7 +198,7 @@ Archived SchoolYear Teacher는 rollover 이후 current operational authority를 
 
 Development 또는 browser 검증 전에 Rails console로 최소 SchoolYear test state를 구성할 수 있다. Console은 fixture/state setup에만 사용하며 미래 year data를 만들어도 calendar guard를 우회할 수 없다. 실제 transition은 production rollover implementation을 통해 검증하고 날짜 경계는 후속 test에서 통제된 시간으로 확인한다. Production helper/module/debug endpoint로 시간을 가장하지 않는다.
 
-B10의 calendar guard와 자동 시도는 calendar spec을 따른다. Next planning SchoolYear 자동 생성, Teacher/Classroom/Student 복사·승계, eligibility override/강제 전환, 실패한 자동 시도의 지속 retry, rollback/undo UI, generic lifecycle engine과 audit framework 확장은 포함하지 않는다.
+B10의 manual-only 실행, calendar guard와 overdue recovery는 calendar spec을 따른다. 자동 rollover와 automatic retry, 이를 위한 scheduler/background job/Rake reconciliation은 제공하지 않는다. Next planning SchoolYear 자동 생성, Teacher/Classroom/Student 복사·승계, eligibility override/강제 전환, rollback/undo UI, generic lifecycle engine과 audit framework 확장은 포함하지 않는다.
 
 ## Archived SchoolYear read-only authority
 
@@ -487,18 +487,18 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 52. Planning manager는 rollover 전 자기 exact planning preparation authority만 가지며 current operational manager 또는 SchoolYear governance actor가 되는 것은 아니고 별도 successor record나 role 복사를 사용하지 않는다.
 53. 후속 eligibility query는 `eligible?`, manager와 manager count를 제공할 수 있고 authorization과 localized 문장을 담당하지 않는다.
 54. Preparation page는 manager 지정 여부만 운영 전환 조건으로 구분할 수 있으며 B9에서는 rollover button을 제공하지 않는다.
-55. B9는 rollover eligibility만 정의하며 actual rollover의 authority, confirmation, locking/transaction과 status transition은 B10 contract를 따른다. 날짜 guard·자동 시도·전환 전 planning recovery는 calendar spec을 따르고 완료된 rollover reversal과 별도 audit 확장은 범위 밖이다.
+55. B9는 rollover eligibility만 정의하며 actual rollover의 authority, confirmation, locking/transaction과 status transition은 B10 contract를 따른다. Manual-only 실행, 날짜 guard와 전환 전 planning recovery는 calendar spec을 따르고 완료된 rollover reversal과 별도 audit 확장은 범위 밖이다.
 56. 잘못 준비한 planning Classroom은 허용된 global admin, current operational manager 또는 active planning manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있다.
 57. 잘못 준비한 planning member Teacher는 허용된 global admin, current operational manager 또는 active planning manager가 current 준비 assignment를 제거한 뒤 hard delete할 수 있고, planning manager Teacher는 global admin만 삭제할 수 있다.
 58. Planning Teacher hard delete는 그 준비 계정에 종속된 credential event 정리를 허용하지만 active/archived Teacher의 credential event 보존 semantics는 변경하지 않는다.
 59. B8 preparation status, B9 eligibility와 planning 삭제 원칙은 active-year runtime behavior 및 active/archived Teacher, Classroom과 HomeroomAssignment lifecycle을 변경하지 않는다.
-60. 수동 actual rollover는 global admin만 실행할 수 있고 current operational manager, ordinary teacher와 planning Teacher는 실행할 수 없다. System automatic attempt는 calendar spec에 따라 같은 canonical transition을 사용한다.
+60. Actual rollover는 global admin의 명시적인 수동 실행만 허용하며 current operational manager, ordinary teacher와 planning Teacher는 실행할 수 없다. HTTP request, scheduler, background job 또는 Rake reconciliation에서 자동 rollover를 실행하지 않는다.
 61. 정상 rollover는 current active SchoolYear를 archived로, target planning SchoolYear를 active로 변경하는 정확히 두 status transition만 수행한다.
 62. School, current active SchoolYear와 target planning SchoolYear를 순서대로 lock한 뒤 B9 structural safety, manager cardinality/credential eligibility와 calendar guard를 transaction 안에서 다시 검증한다.
 63. 두 status 변경은 하나의 transaction에서 모두 commit되거나 모두 rollback되며 부분 전환을 허용하지 않는다.
 64. Inactive School, SchoolYear 누락·복수·소속/연도/status 불일치, manager cardinality 위반과 lock 이후 invariant 변경은 fail closed한다.
 65. 이미 완료된 rollover의 stale/repeated request는 성공으로 처리하지 않는다.
-66. Target Y의 rollover는 Y-02-01부터 가능하며 global admin도 server-side calendar guard를 우회하지 못한다. Y-03-01 이후 미시도 target의 자동 시도는 durable at-most-once이고 기존 eligibility를 유지한다. 상세 경계·실패·overdue recovery는 calendar spec의 acceptance criteria를 따른다.
+66. Target Y의 rollover는 Y-02-01부터 가능하며 global admin도 server-side calendar guard를 우회하지 못한다. 현재 날짜가 Y-03-01 이상이고 target Y가 planning이면 `rollover_overdue?` derived warning을 표시한다. 새 persisted status를 만들지 않으며 global admin이 blocker를 복구한 뒤 기존 수동 rollover를 실행한다. Target year별 날짜 guard와 overdue recovery는 calendar spec의 acceptance criteria를 따른다.
 67. Confirmation은 두 SchoolYear의 status 변화, 새 manager authority와 undo 미제공을 명확히 알리며 action은 global admin의 preparation page에 둔다.
 68. 성공 후 active SchoolYear는 정확히 하나이고 planning SchoolYear는 0개일 수 있으며 기본 Teacher/Classroom context는 새 active SchoolYear를 사용한다.
 69. Planning manager의 role을 복사하거나 User를 만들지 않고 기존 annual Teacher가 active 전환 후 operational manager가 된다.
@@ -562,7 +562,7 @@ Teacher bulk와 Classroom 단건 생성 사이의 전체 wizard transaction은 �
 - 공통 Teacher bulk contract 밖의 Planning HomeroomAssignment 전용 bulk workflow
 - Permanent Teacher identity 또는 연도별 User 자동 연결
 - Manager 정확히 1명 외 business eligibility 조건
-- Calendar spec 밖의 자동 rollover, 실패한 자동 시도의 지속 retry와 next planning SchoolYear 자동 생성
+- 자동 rollover와 automatic retry, 이를 위한 scheduler/background job/Rake reconciliation 및 next planning SchoolYear 자동 생성
 - Teacher/Classroom/Student 자동 복사·승계
 - 완료된 rollover reversal, rollback/undo UI와 generic lifecycle engine. 전환 전 overdue planning recovery는 calendar spec 범위다.
 - Production time-travel/debug module 또는 endpoint
