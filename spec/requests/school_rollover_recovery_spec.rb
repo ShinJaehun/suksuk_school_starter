@@ -17,10 +17,6 @@ RSpec.describe 'Planning rollover recovery', type: :request do
     expect(planning_year.year).to eq(2027)
     expect(response).to redirect_to(school_planning_path(school))
 
-    # The automatic service's real failure/commit is covered in its service spec.
-    # This request flow starts from an already consumed, unsuccessful attempt.
-    attempted_at = Time.current
-    planning_year.update!(automatic_rollover_attempted_at: attempted_at)
     get school_planning_path(school)
     expect(response.body).to include(
       I18n.t('school_years.rollover.overdue', year: 2027),
@@ -55,7 +51,6 @@ RSpec.describe 'Planning rollover recovery', type: :request do
     expect(response).to redirect_to(school_path(school))
     expect(active_year.reload).to be_archived
     expect(planning_year.reload).to be_active
-    expect(planning_year.automatic_rollover_attempted_at).to eq(attempted_at)
     expect(teacher.reload).to be_current_operational_manager
 
     sign_in teacher
@@ -90,6 +85,5 @@ RSpec.describe 'Planning rollover recovery', type: :request do
     expect(planning_year.classrooms.find_by!(class_label: '준비').grade).to eq(3)
     expect(active_year.reload).to be_active
     expect(planning_year.reload).to be_planning
-    expect(planning_year.automatic_rollover_attempted_at).to be_nil
   end
 end

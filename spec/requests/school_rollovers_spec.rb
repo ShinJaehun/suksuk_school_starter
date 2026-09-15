@@ -68,7 +68,6 @@ RSpec.describe 'SchoolYear rollover', type: :request do
     )
     expect(active_year.reload).to be_active
     expect(planning_year.reload).to be_rollover_overdue
-    expect(planning_year.automatic_rollover_attempted_at).to be_nil
   end
 
   [{ active: false }, { encrypted_password: '' }, { encrypted_password: 'invalid' }].each do |corruption|

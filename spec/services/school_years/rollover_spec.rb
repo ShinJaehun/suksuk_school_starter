@@ -17,7 +17,7 @@ RSpec.describe SchoolYears::Rollover do
     described_class.call(school: school, target_school_year_id: planning_year.id)
   end
 
-  it 'rejects January 31 at the transition boundary without consuming an automatic attempt' do
+  it 'rejects January 31 at the transition boundary' do
     travel_to Time.zone.local(2027, 1, 31, 23, 59, 59)
 
     expect { rollover }.to raise_error(described_class::InvalidState) { |error|
@@ -25,15 +25,13 @@ RSpec.describe SchoolYears::Rollover do
     }
     expect(active_year.reload).to be_active
     expect(planning_year.reload).to be_planning
-    expect(planning_year.automatic_rollover_attempted_at).to be_nil
   end
 
-  it 'opens on February 1 without consuming an automatic attempt' do
+  it 'opens on February 1' do
     rollover
 
     expect(active_year.reload).to be_archived
     expect(planning_year.reload).to be_active
-    expect(planning_year.automatic_rollover_attempted_at).to be_nil
   end
 
   it 'does not allow consecutive rollover into a future target year' do
@@ -125,6 +123,24 @@ RSpec.describe SchoolYears::Rollover do
 
     expect(active_year.reload).to be_active
     expect(planning_year.reload).to be_planning
+  end
+
+  it 'allows manual rollover after repairing a manager blocker in an overdue year' do
+    travel_to Time.zone.local(2027, 4, 10)
+    planning_manager.update!(school_role: 'member')
+
+    expect { rollover }.to raise_error(described_class::InvalidState) { |error|
+      expect(error.key).to eq(:manager_missing)
+    }
+    expect(active_year.reload).to be_active
+    expect(planning_year.reload).to be_rollover_overdue
+
+    planning_manager.update!(school_role: 'manager')
+    rollover
+
+    expect(active_year.reload).to be_archived
+    expect(planning_year.reload).to be_active
+    expect(planning_year).not_to be_rollover_overdue
   end
 
   it 'rejects a non-consecutive planning year' do
