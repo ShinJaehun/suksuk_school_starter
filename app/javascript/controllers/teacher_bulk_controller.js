@@ -2,7 +2,14 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["row", "count", "submit", "selection", "selectAll", "operationSubmit", "gradeSubmit", "gradeReason", "selectionCount"]
-  static values = { countLabel: String, selectionLabel: String, submittingLabel: String }
+  static values = {
+    countLabel: String,
+    selectionLabel: String,
+    submittingLabel: String,
+    maleKeys: Array,
+    femaleKeys: Array,
+    imageSources: Object
+  }
 
   connect() {
     this.submitting = false
@@ -12,6 +19,7 @@ export default class extends Controller {
     this.statusObserver.observe(this.element, { childList: true, subtree: true })
     this.rowTargets.forEach((row) => {
       this.filterRow(row)
+      this.syncAvatar(row)
       row.dataset.initialValues = JSON.stringify(this.valuesFor(row))
     })
     this.updateCount()
@@ -31,6 +39,36 @@ export default class extends Controller {
 
   track(event) {
     this.trackRow(event.target.closest("[data-teacher-bulk-target='row']"))
+  }
+
+  changeGender(event) {
+    const row = event.target.closest("[data-teacher-bulk-target='row']")
+    const keys = this.avatarKeysFor(event.target.value)
+    const avatarKey = row.querySelector("[data-teacher-bulk-target='avatarKey']")
+    avatarKey.value = keys.length ? keys[Math.floor(Math.random() * keys.length)] : ""
+    this.syncAvatar(row)
+  }
+
+  avatarKeysFor(gender) {
+    if (gender === "male") return this.maleKeysValue
+    if (gender === "female") return this.femaleKeysValue
+
+    return []
+  }
+
+  syncAvatar(row) {
+    const gender = row.querySelector("[data-teacher-bulk-target='gender']")
+    const avatarKey = row.querySelector("[data-teacher-bulk-target='avatarKey']")
+    const image = row.querySelector("[data-teacher-bulk-target='avatarImage']")
+    if (!gender || !avatarKey || !image) return
+
+    const source = this.avatarKeysFor(gender.value).includes(avatarKey.value) && this.imageSourcesValue[avatarKey.value]
+    image.hidden = !source
+    if (source) {
+      image.src = source
+    } else {
+      image.removeAttribute("src")
+    }
   }
 
   trackRow(row) {

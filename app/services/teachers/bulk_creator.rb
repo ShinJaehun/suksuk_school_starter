@@ -3,7 +3,7 @@ require "securerandom"
 module Teachers
   class BulkCreator
     MAX_ROWS = 30
-    Entry = Data.define(:line, :name, :login_id, :grade, :classroom_id, :user, :errors)
+    Entry = Data.define(:line, :name, :login_id, :gender, :avatar_key, :grade, :classroom_id, :user, :errors)
 
     attr_reader :entries, :errors, :credentials
 
@@ -70,7 +70,7 @@ module Teachers
 
     def normalized_rows(rows)
       Array(rows).map { |row| row.to_h.stringify_keys }
-                 .reject { |row| row.values_at("name", "login_id", "grade", "classroom_id").all?(&:blank?) }
+                 .reject { |row| row.values_at("name", "login_id", "gender", "avatar_key", "grade", "classroom_id").all?(&:blank?) }
     end
 
     def build_entry(row, index)
@@ -83,12 +83,15 @@ module Teachers
         name: row["name"],
         login_id: row["login_id"],
         grade: grade == :invalid ? row["grade"] : grade,
-        avatar_key: User.avatar_keys_for_role("teacher").sample
+        gender: row["gender"],
+        avatar_key: row["avatar_key"]
       )
       Entry.new(
         line: index + 1,
         name: row["name"],
         login_id: row["login_id"],
+        gender: row["gender"],
+        avatar_key: row["avatar_key"],
         grade: grade,
         classroom_id: row["classroom_id"].presence,
         user: user,
@@ -104,8 +107,18 @@ module Teachers
 
       entries.each do |entry|
         entry.errors << I18n.t("admin.teachers.bulk.errors.grade_invalid") if entry.grade == :invalid
+        validate_gender_and_avatar(entry)
         validate_user(entry)
         validate_classroom(entry, classrooms[entry.classroom_id.to_i]) if entry.classroom_id
+      end
+    end
+
+    def validate_gender_and_avatar(entry)
+      unless User::GENDERS.include?(entry.gender)
+        entry.errors << I18n.t("admin.teachers.bulk.errors.gender_invalid")
+      end
+      unless User.avatar_keys_for(entry.gender).include?(entry.avatar_key)
+        entry.errors << I18n.t("admin.teachers.bulk.errors.avatar_invalid")
       end
     end
 

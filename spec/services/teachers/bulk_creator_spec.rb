@@ -9,6 +9,8 @@ RSpec.describe Teachers::BulkCreator do
     {
       name: "선생님 #{index}",
       login_id: "bulk-teacher-#{index}",
+      gender: 'male',
+      avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first,
       grade: grade,
       classroom_id: classroom&.id
     }.merge(attributes)
@@ -42,6 +44,62 @@ RSpec.describe Teachers::BulkCreator do
     expect(accepted).to be_success
     expect(rejected).not_to be_success
     expect(school_year.users.teacher.count).to eq(30)
+  end
+
+  it 'preserves submitted gender and avatars while creating mixed grades and matching assignments' do
+    first_classroom = create(:classroom, school_year: school_year, grade: 3)
+    second_classroom = create(:classroom, school_year: school_year, grade: 6)
+    male_avatar = User::TEACHER_MALE_AVATAR_KEYS.last
+    female_avatar = User::TEACHER_FEMALE_AVATAR_KEYS.last
+
+    result = described_class.new(
+      school_year: school_year,
+      actor: actor,
+      rows: [
+        row(1, grade: 3, classroom: first_classroom, avatar_key: male_avatar),
+        row(2, grade: 6, classroom: second_classroom, gender: 'female', avatar_key: female_avatar)
+      ]
+    ).call
+
+    expect(result).to be_success
+    first, second = result.entries.map { |entry| entry.user.reload }
+    expect(first).to have_attributes(gender: 'male', avatar_key: male_avatar, grade: 3)
+    expect(second).to have_attributes(gender: 'female', avatar_key: female_avatar, grade: 6)
+    expect(first.assigned_classroom).to eq(first_classroom)
+    expect(second.assigned_classroom).to eq(second_classroom)
+    expect(result.credentials.size).to eq(2)
+    expect(TeacherCredentialEvent.temporary_password_issued.where(teacher_user: [first, second]).count).to eq(2)
+  end
+
+  [
+    { gender: nil },
+    { gender: '' },
+    { gender: 'invalid' },
+    { avatar_key: nil },
+    { avatar_key: '' },
+    { avatar_key: 'tampered-avatar' },
+    { gender: 'male', avatar_key: User::TEACHER_FEMALE_AVATAR_KEYS.first },
+    { gender: 'female', avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first }
+  ].each do |invalid_profile|
+    it "rejects #{invalid_profile.inspect} without partial Teachers, assignments, or credential events" do
+      classroom = create(:classroom, school_year: school_year, grade: 4)
+      actor
+
+      expect do
+        result = described_class.new(
+          school_year: school_year,
+          actor: actor,
+          rows: [row(1, classroom: classroom), row(2, **invalid_profile)]
+        ).call
+
+        expect(result).not_to be_success
+        error_key = invalid_profile.key?(:avatar_key) ? 'avatar_invalid' : 'gender_invalid'
+        expect(result.entries.last.errors).to include(I18n.t("admin.teachers.bulk.errors.#{error_key}"))
+        expect(result.credentials).to be_empty
+      end.to change(User, :count).by(0)
+                                 .and change(HomeroomAssignment, :count).by(0)
+                                 .and change(TeacherCredentialEvent, :count).by(0)
+    end
   end
 
   it 'rejects internal and existing normalized login ID duplicates' do

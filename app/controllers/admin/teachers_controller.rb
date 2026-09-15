@@ -33,7 +33,7 @@ class Admin::TeachersController < ApplicationController
 
     row_grade = @grade == "unassigned" ? nil : @grade
     @bulk_entries = Array.new(@count) do
-      { grade: row_grade, name: "", login_id: "", classroom_id: nil, errors: [] }
+      { grade: row_grade, name: "", login_id: "", gender: "", avatar_key: "", classroom_id: nil, errors: [] }
     end
     prepare_bulk_classrooms
     render "teachers/bulk_new"
@@ -42,15 +42,13 @@ class Admin::TeachersController < ApplicationController
   def bulk_create
     @grade = valid_bulk_setup_grade
     @bulk_entries = submitted_bulk_rows
-    @bulk_entries.each { |row| row["grade"] = nil } if @grade == "unassigned"
-    @bulk_entries.each { |row| row["grade"] = @grade } if @grade&.match?(/\A[1-6]\z/)
 
     result = Teachers::BulkCreator.new(
       school_year: @bulk_school_year,
       rows: @bulk_entries,
       actor: current_user
     ).call
-    @bulk_entries = result.entries
+    @bulk_entries = result.entries.map(&:to_h)
     prepare_bulk_classrooms
 
     if result.success?

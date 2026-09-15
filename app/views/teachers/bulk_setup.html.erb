@@ -11,7 +11,7 @@
     <p><span class="text-sm font-medium"><%= t("filters.school.label") %></span><br><%= @selected_school.name %></p>
     <p><span class="text-sm font-medium"><%= t("admin.teachers.index.school_year") %></span><br><%= @selected_school_year.year %></p>
     <div>
-      <%= form.label :grade, t("filters.grade.label"), class: "text-sm font-medium" %>
+      <%= form.label :grade, t("admin.teachers.bulk.default_grade"), class: "text-sm font-medium" %>
       <%= form.select :grade, options_for_select([[t("admin.teachers.bulk.grade_tabs.unassigned"), "unassigned"], *1.upto(6).map { |grade| [t("admin.teachers.bulk.grade_tabs.grade", grade: grade), grade] }], @grade), { prompt: t("admin.teachers.bulk.select_grade") }, class: "mt-1 w-full rounded-md border-stone-300", required: true %>
     </div>
     <div>

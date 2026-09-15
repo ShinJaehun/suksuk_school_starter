@@ -23,7 +23,9 @@ ko:
     teachers:
       bulk:
         add_many: "여러 선생님 추가"
-        setup_description: "추가할 선생님의 학년과 인원을 선택해 주세요."
+        setup_description: "추가할 선생님의 기본 학년과 인원을 선택해 주세요."
+        default_grade: "기본 학년"
+        avatar_label: "썸네일"
         select_grade: "학년을 선택해 주세요"
         count_label: "추가할 인원"
         count_help: "한 번에 최대 30명까지 추가할 수 있습니다."
@@ -68,6 +70,8 @@ ko:
           setup_invalid: "학년과 인원을 다시 확인해 주세요."
           row_count: "선생님은 한 번에 1명부터 30명까지 처리할 수 있습니다."
           grade_invalid: "학년은 미배정 또는 1학년부터 6학년까지만 선택할 수 있습니다."
+          gender_invalid: "성별을 남자 또는 여자로 선택해 주세요."
+          avatar_invalid: "선택한 성별에 맞는 썸네일이 필요합니다. 성별을 다시 선택해 주세요."
           login_id_internal_duplicate: "입력한 명단 안에서 로그인 ID가 중복됩니다."
           login_id_taken: "이미 사용 중인 로그인 ID입니다."
           classroom_internal_duplicate: "같은 학급을 여러 선생님에게 배정할 수 없습니다."

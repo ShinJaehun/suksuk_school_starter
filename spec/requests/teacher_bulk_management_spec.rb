@@ -17,6 +17,14 @@ RSpec.describe 'Teacher bulk management', type: :request do
     { school_id: school.id, school_year_id: year.id }
   end
 
+  def create_row(index, **attributes)
+    {
+      name: "추가 교사 #{index}", login_id: "bulk-profile-#{index}",
+      gender: 'male', avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first,
+      grade: '4', classroom_id: ''
+    }.merge(attributes)
+  end
+
   it 'keeps the existing individual management UI at /teachers' do
     teacher = create(:user, :teacher, school_year: active_year, school_role: 'member',
                                       login_id: 'individual-surface-teacher')
@@ -125,13 +133,122 @@ RSpec.describe 'Teacher bulk management', type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it 'starts four editable profile rows with the setup grade selected' do
+    sign_in current_manager
+
+    get bulk_new_admin_teachers_path, params: context(active_year).merge(grade: '6', count: 4)
+
+    expect(response).to have_http_status(:ok)
+    rows = Nokogiri::HTML(response.body).css('tr[data-teacher-bulk-target="row"]')
+    expect(rows.size).to eq(4)
+    rows.each do |row|
+      expect(row.at_css('select[name$="[grade]"] option[selected]')['value']).to eq('6')
+      expect(row.at_css('select[name$="[grade]"]')['data-action']).to eq('change->teacher-bulk#filter')
+      gender = row.at_css('select[name$="[gender]"][required]')
+      expect(gender).to be_present
+      expect(gender.css('option').map { |option| option['value'] }).to eq(['', 'male', 'female'])
+      expect(row.at_css('input[type="hidden"][name$="[avatar_key]"]')['value'].to_s).to eq('')
+      expect(row.at_css('img[data-teacher-bulk-target="avatarImage"][hidden]')).to be_present
+      expect(row.at_css('select[name$="[classroom_id]"]')).to be_present
+    end
+  end
+
+  it 'starts unassigned rows with every grade and same-year active Classroom options available for filtering' do
+    available = create(:classroom, school_year: active_year, grade: 3)
+    inactive = create(:classroom, school_year: active_year, grade: 3, active: false)
+    planning = create(:classroom, school_year: planning_year, grade: 3)
+    sign_in current_manager
+
+    get bulk_new_admin_teachers_path, params: context(active_year).merge(grade: 'unassigned', count: 2)
+
+    expect(response).to have_http_status(:ok)
+    rows = Nokogiri::HTML(response.body).css('tr[data-teacher-bulk-target="row"]')
+    expect(rows.size).to eq(2)
+    rows.each do |row|
+      grade = row.at_css('select[name$="[grade]"]')
+      expect(grade.css('option').map { |option| option['value'] }).to eq(['', *('1'..'6').to_a])
+      selected = grade.at_css('option[selected]') || grade.at_css('option')
+      expect(selected['value']).to eq('')
+      classroom = row.at_css('select[name$="[classroom_id]"]')
+      expect(classroom.at_css('option')['value']).to eq('')
+      expect(classroom.at_css(%(option[value="#{available.id}"]))['data-grade']).to eq('3')
+      expect(classroom.css('option').map { |option| option['value'] }).not_to include(inactive.id.to_s, planning.id.to_s)
+    end
+  end
+
+  ['6', 'unassigned'].each do |setup_grade|
+    it "creates matching assignments for mixed row grades without overwriting them with #{setup_grade}" do
+      first_classroom = create(:classroom, school_year: active_year, grade: 3)
+      second_classroom = create(:classroom, school_year: active_year, grade: 5)
+      sign_in current_manager
+
+      expect do
+        post bulk_create_admin_teachers_path, params: context(active_year).merge(
+          grade: setup_grade,
+          teachers: { rows: {
+            '0' => create_row(1, grade: '3', classroom_id: first_classroom.id),
+            '1' => create_row(2, grade: '5', classroom_id: second_classroom.id,
+                                gender: 'female', avatar_key: User::TEACHER_FEMALE_AVATAR_KEYS.last)
+          } }
+        )
+      end.to change(User, :count).by(2)
+                                 .and change(HomeroomAssignment, :count).by(2)
+                                 .and change(TeacherCredentialEvent, :count).by(2)
+
+      expect(response).to have_http_status(:ok)
+      expect(first_classroom.reload.teacher).to have_attributes(
+        login_id: 'bulk-profile-1', grade: 3, gender: 'male', avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first
+      )
+      expect(second_classroom.reload.teacher).to have_attributes(
+        login_id: 'bulk-profile-2', grade: 5, gender: 'female', avatar_key: User::TEACHER_FEMALE_AVATAR_KEYS.last
+      )
+    end
+  end
+
+  it 'rejects a tampered avatar batch and preserves submitted profiles, grades, and Classrooms on rerender' do
+    classroom = create(:classroom, school_year: active_year, grade: 3)
+    avatar_key = User::TEACHER_FEMALE_AVATAR_KEYS.last
+    submitted_rows = [
+      create_row(1, grade: '3', classroom_id: classroom.id, gender: 'female', avatar_key: avatar_key),
+      create_row(2, grade: '', avatar_key: avatar_key)
+    ]
+    sign_in current_manager
+
+    expect do
+      post bulk_create_admin_teachers_path, params: context(active_year).merge(
+        grade: '6', teachers: { rows: { '0' => submitted_rows.first, '1' => submitted_rows.last } }
+      )
+    end.to change(User, :count).by(0)
+                               .and change(HomeroomAssignment, :count).by(0)
+                               .and change(TeacherCredentialEvent, :count).by(0)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.body).to include(I18n.t('admin.teachers.bulk.errors.avatar_invalid'))
+    rows = Nokogiri::HTML(response.body).css('tr[data-teacher-bulk-target="row"]')
+    expect(rows.size).to eq(2)
+    rows.zip(submitted_rows).each do |row, submitted|
+      %i[name login_id avatar_key].each do |field|
+        expect(row.at_css(%(input[name$="[#{field}]"]))['value']).to eq(submitted.fetch(field))
+      end
+      %i[gender grade classroom_id].each do |field|
+        select = row.at_css(%(select[name$="[#{field}]"]))
+        selected = select.at_css('option[selected]') || select.at_css('option')
+        expect(selected['value']).to eq(submitted.fetch(field).to_s)
+      end
+    end
+    expect(rows.first.at_css('img[data-teacher-bulk-target="avatarImage"]')['src']).to include(avatar_key)
+  end
+
   it 'creates a batch and returns committed credentials with no-store' do
     sign_in current_manager
 
     expect do
       post bulk_create_admin_teachers_path, params: context(active_year).merge(
         grade: '4',
-        teachers: { rows: { '0' => { name: '일괄 교사', login_id: 'bulk-request', grade: '4' } } }
+        teachers: { rows: { '0' => {
+          name: '일괄 교사', login_id: 'bulk-request', grade: '4',
+          gender: 'male', avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first
+        } } }
       )
     end.to change { active_year.users.teacher.count }.by(1)
                                                      .and change(TeacherCredentialEvent, :count).by(1)
@@ -151,6 +268,7 @@ RSpec.describe 'Teacher bulk management', type: :request do
           grade: '4',
           teachers: { rows: { '0' => {
             name: "준비 교사 #{index}", login_id: "planning-bulk-request-#{index}",
+            gender: 'male', avatar_key: User::TEACHER_MALE_AVATAR_KEYS.first,
             grade: '4', classroom_id: index.zero? ? classroom.id : nil
           } } }
         )

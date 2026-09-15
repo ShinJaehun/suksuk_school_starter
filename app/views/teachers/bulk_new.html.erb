@@ -1,5 +1,12 @@
+<% avatar_image_sources = User::TEACHER_AVATAR_KEYS.index_with { |key| asset_path("avatars/#{key}.png") } %>
+<% gender_options = [[t("admin.teachers.form.gender_male"), "male"], [t("admin.teachers.form.gender_female"), "female"]] %>
+<% grade_options = [[t("admin.teachers.bulk.grade_tabs.unassigned"), ""], *1.upto(6).map { |grade| [t("admin.teachers.bulk.grade_tabs.grade", grade: grade), grade] }] %>
+
 <div class="space-y-6"
      data-controller="teacher-bulk"
+     data-teacher-bulk-male-keys-value="<%= User::TEACHER_MALE_AVATAR_KEYS.to_json %>"
+     data-teacher-bulk-female-keys-value="<%= User::TEACHER_FEMALE_AVATAR_KEYS.to_json %>"
+     data-teacher-bulk-image-sources-value="<%= avatar_image_sources.to_json %>"
      data-teacher-bulk-count-label-value="<%= t('admin.teachers.bulk.count', count: '%{count}') %>"
      data-teacher-bulk-submitting-label-value="<%= t('admin.teachers.bulk.submitting') %>">
   <div>
@@ -18,33 +25,52 @@
           <tr>
             <th class="p-3 text-left"><%= t("ui.user_labels.name") %></th>
             <th class="p-3 text-left"><%= t("users.teacher_sessions.login_id") %></th>
+            <th class="p-3 text-left"><%= t("admin.teachers.form.gender_label") %></th>
+            <th class="p-3 text-left"><%= t("admin.teachers.bulk.avatar_label") %></th>
+            <th class="p-3 text-left"><%= t("filters.grade.label") %></th>
             <th class="p-3 text-left"><%= t("admin.teachers.form.classrooms_label") %></th>
             <th class="p-3 text-left"><%= t("admin.teachers.bulk.exclude") %></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-stone-100">
           <% @bulk_entries.each_with_index do |entry, index| %>
-            <% value = ->(key) { entry.respond_to?(key) ? entry.public_send(key) : entry[key] || entry[key.to_s] } %>
-            <% entry_errors = value.call(:errors) || [] %>
+            <% avatar_source = entry[:gender].present? ? avatar_image_sources[entry[:avatar_key]] : nil %>
             <tr data-teacher-bulk-target="row">
-              <td class="p-3 align-top"><%= text_field_tag "teachers[rows][#{index}][name]", value.call(:name), class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true %></td>
               <td class="p-3 align-top">
-                <%= text_field_tag "teachers[rows][#{index}][login_id]", value.call(:login_id), class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true, autocomplete: "off" %>
-                <%= hidden_field_tag "teachers[rows][#{index}][grade]", value.call(:grade), data: { teacher_bulk_target: "grade" } %>
+                <%= text_field_tag "teachers[rows][#{index}][name]", entry[:name], class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true %>
               </td>
               <td class="p-3 align-top">
-                <% if value.call(:grade).blank? %>
-                  <%= hidden_field_tag "teachers[rows][#{index}][classroom_id]", "" %>
-                  <%= t("admin.teachers.index.unassigned_grade") %>
-                <% else %>
-                  <select name="teachers[rows][<%= index %>][classroom_id]" class="min-w-32 rounded-md border border-stone-300 bg-white px-3 py-2 focus:border-stone-700 focus:ring-stone-700" data-teacher-bulk-target="classroom">
-                    <option value=""><%= t("admin.teachers.index.unassigned_grade") %></option>
-                    <% @classrooms.each do |classroom| %>
-                      <option value="<%= classroom.id %>" data-grade="<%= classroom.grade %>" <%= "selected" if classroom.id.to_s == value.call(:classroom_id).to_s %>><%= classroom_display_name(classroom) %></option>
-                    <% end %>
-                  </select>
+                <%= text_field_tag "teachers[rows][#{index}][login_id]", entry[:login_id], class: "w-40 rounded-md border border-stone-400 bg-white px-3 py-2 shadow-sm focus:border-stone-700 focus:ring-stone-700", required: true, autocomplete: "off" %>
+              </td>
+              <td class="p-3 align-top">
+                <%= select_tag "teachers[rows][#{index}][gender]",
+                               options_for_select(gender_options, entry[:gender]),
+                               prompt: t("admin.teachers.form.gender_prompt"), required: true,
+                               class: "min-w-32 rounded-md border border-stone-300 bg-white px-3 py-2",
+                               data: { teacher_bulk_target: "gender", action: "change->teacher-bulk#changeGender" } %>
+              </td>
+              <td class="p-3 align-top">
+                <%= hidden_field_tag "teachers[rows][#{index}][avatar_key]", entry[:avatar_key], data: { teacher_bulk_target: "avatarKey" } %>
+                <%= tag.img src: avatar_source, alt: "", hidden: avatar_source.blank?,
+                            class: "h-10 w-10 rounded-full object-cover",
+                            data: { teacher_bulk_target: "avatarImage" } %>
+              </td>
+              <td class="p-3 align-top">
+                <%= select_tag "teachers[rows][#{index}][grade]",
+                               options_for_select(grade_options, entry[:grade]),
+                               class: "min-w-28 rounded-md border border-stone-300 bg-white px-3 py-2",
+                               data: { teacher_bulk_target: "grade", action: "change->teacher-bulk#filter" } %>
+              </td>
+              <td class="p-3 align-top">
+                <select name="teachers[rows][<%= index %>][classroom_id]" class="min-w-32 rounded-md border border-stone-300 bg-white px-3 py-2 focus:border-stone-700 focus:ring-stone-700" data-teacher-bulk-target="classroom">
+                  <option value=""><%= t("admin.teachers.index.unassigned_grade") %></option>
+                  <% @classrooms.each do |classroom| %>
+                    <option value="<%= classroom.id %>" data-grade="<%= classroom.grade %>" <%= "selected" if classroom.id.to_s == entry[:classroom_id].to_s %>><%= classroom_display_name(classroom) %></option>
+                  <% end %>
+                </select>
+                <% if entry[:errors].any? %>
+                  <p class="mt-1 max-w-xs text-xs text-rose-700"><%= entry[:errors].to_sentence %></p>
                 <% end %>
-                <% if entry_errors.any? %><p class="mt-1 max-w-xs text-xs text-rose-700"><%= entry_errors.to_sentence %></p><% end %>
               </td>
               <td class="p-3 align-middle"><button type="button" class="inline-flex items-center text-sm font-medium text-rose-700 underline" data-action="teacher-bulk#removeRow"><%= t("admin.teachers.bulk.exclude") %></button></td>
             </tr>
