@@ -175,7 +175,7 @@ module Teachers
     end
 
     def release_current_assignment!
-      if target_school_year&.planning?
+      if target_school_year&.planning? || current_assignment.started_on > Date.current
         current_assignment.destroy!
       else
         current_assignment.update!(ended_on: Date.current)

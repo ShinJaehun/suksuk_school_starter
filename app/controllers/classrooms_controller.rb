@@ -85,6 +85,7 @@ class ClassroomsController < ApplicationController
     @classroom = Classroom.new
     assign_classroom_school_year
     @classroom.assign_attributes(classroom_params)
+    authorize @classroom
 
     if @classroom.school_year&.school&.inactive?
       @classroom.errors.add(:school_year, t('school_status.inactive_school'))

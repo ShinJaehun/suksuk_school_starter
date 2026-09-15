@@ -169,7 +169,11 @@ module Teachers
         target_id = positive_id(target_by_teacher.fetch(assignment.teacher_id).classroom_id)
         next if target_id == assignment.classroom_id
 
-        school_year.planning? ? assignment.destroy! : assignment.update!(ended_on: Date.current)
+        if school_year.planning? || assignment.started_on > Date.current
+          assignment.destroy!
+        else
+          assignment.update!(ended_on: Date.current)
+        end
       end
     end
 

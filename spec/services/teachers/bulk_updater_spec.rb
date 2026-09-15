@@ -1,6 +1,84 @@
 require "rails_helper"
 
 RSpec.describe Teachers::BulkUpdater do
+  context "after a February rollover with a March 1 assignment" do
+    include ActiveSupport::Testing::TimeHelpers
+
+    let(:school) { create(:school) }
+    let(:planning_year) { create(:school_year, school: school, year: 2027) }
+    let(:record) do
+      create(:user, :teacher, school_year: planning_year, school_role: "manager",
+        login_id: "february-rollover-manager", grade: 4)
+    end
+    let(:original_classroom) { create(:classroom, school_year: planning_year, grade: 4) }
+    let(:replacement) { create(:classroom, school_year: planning_year, grade: 4) }
+    let(:assignment) do
+      create(:homeroom_assignment, teacher: record, classroom: original_classroom,
+        started_on: Date.new(2027, 3, 1))
+    end
+
+    before do
+      travel_to Time.zone.local(2027, 2, 1)
+      create(:school_year, :active, school: school, year: 2026)
+      assignment
+      replacement
+      SchoolYears::Rollover.call(school: school, target_school_year_id: planning_year.id)
+      record.reload
+      travel_to Time.zone.local(2027, 2, 15)
+    end
+
+    after { travel_back }
+
+    def change_rollover_assignment(classroom)
+      described_class.new(
+        school_year: planning_year.reload,
+        scope: planning_year.users.teacher,
+        rows: [row(record, classroom: classroom)]
+      ).call
+    end
+
+    it "releases the future assignment without retaining history" do
+      expect(change_rollover_assignment(nil)).to be_success
+
+      expect(HomeroomAssignment.exists?(assignment.id)).to eq(false)
+      expect(record.reload.current_homeroom_assignment).to be_nil
+      expect(record.homeroom_assignments).to be_empty
+    end
+
+    it "replaces the future assignment with an active assignment starting today" do
+      expect(change_rollover_assignment(replacement)).to be_success
+
+      expect(HomeroomAssignment.exists?(assignment.id)).to eq(false)
+      expect(record.reload.homeroom_assignments.count).to eq(1)
+      expect(record.current_homeroom_assignment).to have_attributes(
+        classroom: replacement, started_on: Date.new(2027, 2, 15), ended_on: nil
+      )
+      expect(original_classroom.reload.teacher).to be_nil
+    end
+
+    it "preserves started assignment history from March 1 onward" do
+      travel_to Time.zone.local(2027, 3, 1)
+
+      expect(change_rollover_assignment(replacement)).to be_success
+      expect(assignment.reload).to have_attributes(
+        started_on: Date.new(2027, 3, 1), ended_on: Date.new(2027, 3, 1)
+      )
+      new_assignment = record.reload.current_homeroom_assignment
+      expect(new_assignment).to have_attributes(
+        classroom: replacement, started_on: Date.new(2027, 3, 1), ended_on: nil
+      )
+
+      travel_to Time.zone.local(2027, 3, 2)
+
+      expect(change_rollover_assignment(nil)).to be_success
+      expect(new_assignment.reload).to have_attributes(
+        started_on: Date.new(2027, 3, 1), ended_on: Date.new(2027, 3, 2)
+      )
+      expect(record.reload.current_homeroom_assignment).to be_nil
+      expect(record.homeroom_assignments).to contain_exactly(assignment, new_assignment)
+    end
+  end
+
   let(:school) { create(:school) }
   let(:school_year) { create(:school_year, :active, school: school) }
 

@@ -171,6 +171,107 @@ RSpec.describe 'Planning manager collaboration', type: :request do
     end.to change(Classroom, :count).by(-1)
   end
 
+  it 'defaults a direct Classroom POST to its exact planning year' do
+    expect do
+      post classrooms_path, params: { classroom: { grade: 4, class_label: '준비' } }
+    end.to change(Classroom, :count).by(1)
+
+    classroom = planning_year.classrooms.find_by!(grade: 4, class_label: '준비')
+    expect(response).to redirect_to(classroom_path(classroom))
+  end
+
+  it 'rejects direct Classroom POSTs into its active and archived years' do
+    archived_year = create(:school_year, :archived, school: school, year: 2025)
+
+    [active_year, archived_year].each do |school_year|
+      sign_in planning_manager
+
+      expect do
+        post classrooms_path, params: {
+          school_id: school.id, school_year_id: school_year.id,
+          classroom: { grade: 4, class_label: '금지' }
+        }
+      end.not_to change(Classroom, :count)
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  it 'rejects direct Classroom POSTs with another School or its planning year' do
+    other_school = create(:school)
+    create(:school_year, :active, school: other_school, year: 2026)
+    other_planning_year = create(:school_year, school: other_school, year: 2027)
+
+    [school.id, other_school.id].each do |school_id|
+      sign_in planning_manager
+
+      expect do
+        post classrooms_path, params: {
+          school_id: school_id, school_year_id: other_planning_year.id,
+          classroom: { grade: 4, class_label: '금지' }
+        }
+      end.not_to change(Classroom, :count)
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  it 'rejects a direct Classroom POST after its planning year becomes non-immediate' do
+    planning_year.update!(year: 2028)
+
+    expect do
+      post classrooms_path, params: context.merge(classroom: { grade: 4, class_label: '금지' })
+    end.not_to change(Classroom, :count)
+
+    expect(response).to redirect_to(school_teacher_login_path(school))
+  end
+
+  it 'keeps direct active and exact planning Classroom creation for the current manager' do
+    manager = create(:user, :teacher, school_year: active_year, school_role: 'manager',
+                                      login_id: 'classroom-current-manager')
+    sign_in manager
+
+    [active_year, planning_year].each do |school_year|
+      expect do
+        post classrooms_path, params: {
+          school_id: school.id, school_year_id: school_year.id,
+          classroom: { grade: 4, class_label: '허용' }
+        }
+      end.to change { school_year.classrooms.count }.by(1)
+      expect(response).to have_http_status(:found)
+    end
+  end
+
+  it 'keeps admin Classroom creation across Schools in active and exact immediate planning years' do
+    other_school = create(:school)
+    other_active_year = create(:school_year, :active, school: other_school, year: 2026)
+    other_planning_year = create(:school_year, school: other_school, year: 2027)
+    sign_in create(:user, :admin)
+
+    [active_year, planning_year, other_active_year, other_planning_year].each do |school_year|
+      expect do
+        post classrooms_path, params: {
+          school_id: school_year.school_id, school_year_id: school_year.id,
+          classroom: { grade: 4, class_label: '허용' }
+        }
+      end.to change { school_year.classrooms.count }.by(1)
+      expect(response).to have_http_status(:found)
+    end
+  end
+
+  it 'rejects admin Classroom creation in a non-immediate planning year' do
+    other_school = create(:school)
+    create(:school_year, :active, school: other_school, year: 2026)
+    other_planning_year = create(:school_year, school: other_school, year: 2028)
+    sign_in create(:user, :admin)
+
+    expect do
+      post classrooms_path, params: {
+        school_id: other_school.id, school_year_id: other_planning_year.id,
+        classroom: { grade: 4, class_label: '금지' }
+      }
+    end.not_to change(Classroom, :count)
+    expect(response).to have_http_status(:not_found)
+  end
+
   it 'deletes a planning member Teacher but not the planning manager' do
     expect do
       delete teacher_path(planning_teacher), params: context

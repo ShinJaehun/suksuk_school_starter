@@ -104,6 +104,8 @@ class Classrooms::ManagementContext
     years = creation_school_years
     @creation_school_year = if school_year_id.present?
                               years.find(positive_id!(:school_year_id))
+                            elsif actor.planning_manager_session_eligible?
+                              years.find(actor.school_year_id)
                             else
                               years.find_by!(status: :active)
                             end
@@ -148,7 +150,8 @@ class Classrooms::ManagementContext
   end
 
   def creation_school_years
-    return creation_school.school_years.where(status: %i[active planning]) if actor.admin?
+    return SchoolYear.where(id: actor.school_year_id) if actor.planning_manager_session_eligible?
+    return SchoolYear.none unless actor.admin? || actor.current_operational_manager?
 
     active_year = creation_school.active_school_year
     planning_year = creation_school.planning_school_year
