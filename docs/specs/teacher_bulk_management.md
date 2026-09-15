@@ -6,16 +6,18 @@
 
 Reference UI는 `ShinJaehun/suksuk_class_vote` main의 현재 Teacher bulk 구현이다. School Starter는 reference의 화면 구조, 문구, 버튼 배치, Tailwind class와 Stimulus interaction을 가능한 한 그대로 이식한다. 다만 `SchoolMembership`, membership grade와 `Classroom#teacher_id` 기반 persistence는 가져오지 않고 annual Teacher `User`, `User#school_year`, `User#grade`와 `HomeroomAssignment`로 구현한다.
 
+Bulk-create row별 학년 선택과 gender/avatar 입력은 이 문서의 확정 계약에 따라 reference UI를 확장한다. 이번 단계는 spec-first 문서 변경이며 runtime, view, Stimulus와 spec test 반영은 후속 구현 단계에서 수행한다.
+
 ## Purpose
 
 Global admin과 자기 School의 operational manager가 기존 `/teachers` School/SchoolYear context에서 여러 annual Teacher를 안전하게 생성·수정하거나 lifecycle/grade operation을 수행할 수 있게 한다. Bulk는 single Teacher operation을 대체하는 별도 domain이 아니며 기존 authority, annual identity, credential audit와 assignment lifecycle을 우회하지 않는다.
 
 ## Reference UI contract
 
-다음 reference UI와 interaction을 새로 디자인하지 않는다.
+다음 reference UI와 interaction을 유지하되 bulk-create row의 학년과 gender/avatar 입력은 아래 계약으로 확장한다.
 
-- `app/views/teachers/bulk_setup.html.erb`: School/context, 학년과 1~30명 인원 선택, 최대 30명 안내, `여러 선생님 추가` 진입
-- `app/views/teachers/bulk_new.html.erb`: 이름, 로그인 ID, 학년, 담당 반 row table, row 제외, 현재 인원 표시와 중복 submit 방지
+- `app/views/teachers/bulk_setup.html.erb`: School/context, 각 row의 초기/default 학년과 1~30명 인원 선택, 최대 30명 안내, `여러 선생님 추가` 진입
+- `app/views/teachers/bulk_new.html.erb`: 이름, 로그인 ID, 성별 select, avatar 썸네일과 hidden `avatar_key`, 학년 select, 담당 학급 select, 제외 순서의 row table, 현재 인원 표시와 중복 submit 방지
 - `app/views/teachers/_school_management.html.erb`: `전체 / 1~6학년 / 미배정` 탭과 management table 배치
 - `app/views/teachers/_bulk_edit_table.html.erb`: 모두 선택, 선택 인원 표시, name/login ID/grade/Classroom inline edit, 상태와 credential action, 선택 작업 영역, `선생님 추가`, `여러 선생님 추가`, `변경 사항 저장`
 - `app/views/teachers/_bulk_status.html.erb`와 `_bulk_password_action.html.erb`: 기존 lifecycle/credential action을 table row에 배치하는 구조
@@ -31,6 +33,8 @@ Archived context에서는 Teacher 목록을 현재 read-only 형식으로 조회
 ## Context resolution
 
 모든 Teacher bulk endpoint는 기존 `Teachers::ManagementContext`를 사용한다. 별도 School/SchoolYear resolver나 generic bulk context를 만들지 않는다.
+
+Bulk-create의 Teacher, grade, Classroom과 HomeroomAssignment는 기존과 같이 명시적으로 선택한 SchoolYear에 귀속한다. Row별 grade와 gender/avatar 입력은 SchoolYear context나 active/planning의 기존 create authority를 변경하지 않으며 archived SchoolYear에서는 생성할 수 없다.
 
 - Global admin은 명시적으로 선택한 active School과 active 또는 planning SchoolYear에서 bulk operation을 수행한다. Bulk mutation endpoint에서는 School과 SchoolYear가 모두 명시되어야 한다.
 - Current operational manager의 기본 `/teachers` context는 자기 School active SchoolYear다.
@@ -61,14 +65,14 @@ Bulk authority는 `TeacherManagementPolicy`, `UserPolicy`와 현재 School-opera
 
 한 request는 정확히 하나의 resolved SchoolYear만 대상으로 한다. Row마다 School 또는 SchoolYear를 선택할 수 없다.
 
-Create/update row가 받는 business field는 다음과 같다.
+Create/update row가 공통으로 받는 business field는 다음과 같다.
 
 - `name`
 - `login_id`
 - `grade`: 미배정 또는 1..6
 - optional `classroom_id`: 미배정 또는 resolved SchoolYear의 active Classroom
 
-Bulk create UI에는 reference에 없는 gender/avatar field를 추가하지 않는다. Starter의 single-create는 gender가 없어도 유효하며 avatar가 제출되지 않으면 teacher role의 허용 pool에서 server-side 기본값을 선택한다. Bulk create도 같은 server-side 기본 정책을 사용한다. Active-year User의 gender/avatar를 추론하거나 복사하지 않는다.
+Bulk-create row는 추가로 필수 `gender` (`male` 또는 `female`)와 해당 gender의 Teacher pool에 속하는 `avatar_key`를 받는다. 이 계약은 gender 없이 teacher role 전체 avatar pool에서 server-side random 기본값을 만들던 bulk-create 정책을 대체한다. Single Teacher create/edit의 기존 gender/avatar UX와 정책은 변경하지 않으며, bulk row update에는 gender/avatar 수정을 추가하지 않는다. Active-year User의 gender/avatar를 추론하거나 복사하지 않는다.
 
 Client에서 다음 값을 받거나 신뢰하지 않는다.
 
@@ -90,6 +94,37 @@ Active와 planning create는 동일한 UI와 application boundary를 사용한�
 - Classroom 미선택은 grade만 가진 Teacher 또는 grade도 없는 미배정 Teacher를 만든다.
 - 모든 create target은 member Teacher다. Manager designation은 별도 governance flow다.
 
+### Setup grade와 row별 학년
+
+- `bulk_setup`의 grade는 제거하지 않으며 `bulk_new` 각 row의 초기/default grade로만 사용한다. 1~6학년을 선택하면 모든 새 row가 해당 학년으로, 미배정을 선택하면 모든 row가 미배정으로 시작한다.
+- 각 row의 grade는 hidden field가 아닌 select다. 선택값은 미배정과 1~6학년이며 이후 row마다 독립적으로 변경할 수 있다. 서로 다른 grade의 Teacher를 한 batch에서 생성할 수 있다.
+- Submitted row grade가 canonical input이다. `bulk_create` controller는 setup grade로 모든 row의 grade를 다시 덮어쓰지 않는다.
+- Validation 실패 후 `bulk_new`를 다시 렌더링할 때 제출된 각 row의 grade를 보존하며 setup 초기값으로 되돌리지 않는다.
+
+### Row별 Classroom filtering
+
+기존 `teacher_bulk_controller.js`의 grade/Classroom filtering semantics를 재사용한다. 별도 Turbo request나 새 Classroom endpoint를 만들지 않는다.
+
+- Row grade 변경 즉시 같은 row의 Classroom select를 resolved SchoolYear의 해당 grade 후보로 필터링한다.
+- 미배정 grade에서는 Classroom도 미배정만 가능하다.
+- 선택된 Classroom이 변경된 grade와 맞지 않으면 Classroom 선택을 미배정으로 초기화한다.
+- Client filtering은 저장 권한이나 validation을 대신하지 않는다. 최종 `Teachers::BulkCreator` validation은 foreign, wrong-grade, occupied 또는 invalid Classroom과 batch 내 duplicate Classroom을 계속 거부한다.
+
+### Gender와 avatar
+
+- 각 bulk-create row에는 필수 gender select, avatar thumbnail preview와 hidden `avatar_key`를 제공한다. Gender는 `male`과 `female`만 허용한다.
+- 사용자가 `male`을 선택하면 `User::TEACHER_MALE_AVATAR_KEYS`, `female`을 선택하면 `User::TEACHER_FEMALE_AVATAR_KEYS`에서 random avatar 하나를 선택한다.
+- Gender를 다른 값으로 바꾸면 새 gender pool에서 avatar를 다시 random 선택하고 preview와 hidden value를 함께 갱신한다.
+- Validation 실패로 다시 렌더링할 때는 제출된 gender와 유효한 `avatar_key`를 그대로 유지하며 임의로 다시 randomize하지 않는다.
+- Server에서도 gender와 gender/avatar 조합을 검증한다. Gender 또는 avatar 누락, invalid gender, 선택 gender의 allowed pool 밖 avatar나 tampered 조합은 row validation failure이며 전체 batch를 저장하지 않는다. 오류 값을 server-side random 기본값으로 대체해 통과시키지 않는다.
+- 기존 User role avatar validation은 유지한다. 이 bulk-create 규칙을 User 전체의 gender 필수 정책이나 단건 Teacher form 정책으로 확대하지 않는다.
+
+### Normalized row와 실패 응답
+
+`Teachers::BulkCreator`의 Entry/normalized row는 최소 `name`, `login_id`, `gender`, `avatar_key`, `grade`, `classroom_id`를 보존한다. Create 실패 후 재렌더링에서도 값과 error를 row별로 유지한다. 다른 row의 실패를 이유로 유효한 gender/avatar/grade/Classroom 선택을 지우거나 setup 값·random avatar로 대체하지 않는다. 유효하지 않은 값은 row error로 처리하며 저장하지 않는다.
+
+### Atomic create
+
 Bulk create는 하나의 outer transaction에서 다음 순서를 따른다.
 
 1. context와 actor authority를 resolve한다.
@@ -97,11 +132,13 @@ Bulk create는 하나의 outer transaction에서 다음 순서를 따른다.
 3. request 내부 normalized `login_id` duplicate와 Classroom duplicate를 모든 해당 row에 표시한다.
 4. resolved SchoolYear의 existing Teacher `login_id` duplicate를 검사한다.
 5. submitted Classroom을 resolved SchoolYear의 active Classroom scope에서 resolve하고 id 순서로 lock한다.
-6. Teacher/Classroom grade 일치, Classroom 점유 여부와 모든 User/HomeroomAssignment validation을 저장 전에 검사한다.
+6. Row별 gender, gender/avatar 조합, grade, Teacher/Classroom grade 일치, Classroom 점유 여부와 모든 User/HomeroomAssignment validation을 저장 전에 검사한다.
 7. 모든 row가 유효한 경우에만 Teacher, credential event와 assignment를 저장한다.
 8. 한 row, credential event 또는 assignment라도 실패하면 전체 batch를 rollback한다.
 
 부분 성공, duplicate row skip, existing Teacher implicit update와 retry의 idempotent success 처리는 하지 않는다.
+
+Invalid gender, invalid gender/avatar 조합, invalid grade, duplicate login ID, duplicate/invalid/occupied/wrong-grade Classroom, credential creation failure 또는 기존 User validation failure가 한 row라도 있으면 Teacher, HomeroomAssignment와 credential event를 부분 저장하지 않는다.
 
 ## Bulk row update
 
@@ -186,9 +223,9 @@ Starter의 단건 `temporary_password.html.erb`와 bulk credentials table은 같
 4. Current manager는 자기 School active와 exact immediate planning context에서 bulk를 수행할 수 있고 eligible planning manager는 자기 exact immediate planning context에서만 수행할 수 있다.
 5. Ordinary teacher, 다른 School, archive, inactive School, malformed와 unauthorized SchoolYear context는 mutation control이 없고 direct request도 fail closed한다.
 6. Bulk create는 1..30 member annual Teacher만 만들며 protected field injection으로 manager/admin 또는 다른 SchoolYear User를 만들 수 없다.
-7. Gender/avatar input은 bulk UI에 추가하지 않고 server-side single-create 기본 avatar 정책을 적용한다.
+7. Bulk-create row에는 필수 gender select와 gender-specific avatar thumbnail 및 hidden `avatar_key`를 제공한다. Male/female 선택과 변경 시 해당 Teacher gender pool에서 random avatar를 선택하고 preview와 hidden value를 함께 갱신한다. Bulk edit과 single Teacher form의 gender/avatar 정책은 변경하지 않는다.
 8. Active와 planning create 모두 optional matching Classroom을 HomeroomAssignment로 연결하며 Student data를 만들지 않는다.
-9. 모든 create row를 선검증하고 duplicate login ID/Classroom, occupied/foreign/wrong-grade Classroom 또는 credential audit failure 시 Teacher/event/assignment가 하나도 남지 않는다.
+9. 모든 create row를 선검증하고 missing/invalid gender/avatar, tampered gender/avatar 조합, invalid grade, duplicate login ID/Classroom, invalid/occupied/foreign/wrong-grade Classroom, credential creation/audit failure 또는 User validation failure 시 Teacher/event/assignment가 하나도 남지 않는다.
 10. Bulk row update는 authorized current context Teacher만 수정하며 inactive row와 injected Teacher id를 거부한다.
 11. Grade/Classroom 동시 변경, 명시적 해제와 같은-batch Classroom 교환은 active/planning 각각의 assignment history semantics로 원자 처리된다.
 12. Batch 밖 Teacher의 Classroom은 탈취하지 않는다.
@@ -197,6 +234,11 @@ Starter의 단건 `temporary_password.html.erb`와 bulk credentials table은 같
 15. 한 target이라도 invalid/unauthorized이면 create/update/operation의 어떤 row도 부분 저장되지 않는다.
 16. 성공한 bulk create credential만 no-store 결과 화면에서 한 번 표시되며 DB/log/flash/session에는 plaintext가 없다.
 17. Existing single Teacher flow, ordinary Teacher의 담당 Classroom authority, manager designation, SchoolYear governance와 rollover 권한은 변경되지 않는다.
+18. Setup에서 6학년과 4명을 선택하면 `bulk_new`의 4개 row 모두 6학년이 preselect된다. 각 row의 grade는 select로 개별 변경할 수 있으며 setup grade가 제출 값을 덮어쓰지 않는다.
+19. Setup에서 미배정을 선택하면 모든 row가 미배정으로 시작하고 이후 row마다 1~6학년을 선택할 수 있다.
+20. Grade 변경 즉시 같은 row의 Classroom 후보가 같은 SchoolYear의 해당 grade로 필터링된다. 기존 선택이 새 grade와 맞지 않거나 grade를 미배정으로 바꾸면 Classroom 선택도 미배정된다. 기존 Stimulus filtering을 재사용하며 Turbo request나 새 endpoint를 추가하지 않는다.
+21. Validation 실패 후 제출된 row별 name/login ID/gender/avatar/grade/Classroom 값과 error를 유지한다. 유효한 gender/avatar/grade/Classroom은 setup 기본값으로 초기화하거나 임의로 다시 randomize하지 않는다.
+22. 서로 다른 grade의 Teacher와 각 grade에 맞는 Classroom assignment를 한 batch에서 생성할 수 있다. 최대 30명, login ID uniqueness, Classroom cardinality, credential audit와 atomicity 계약은 유지된다.
 
 ## Non-goals
 
@@ -210,11 +252,19 @@ Starter의 단건 `temporary_password.html.erb`와 bulk credentials table은 같
 - `SchoolMembership` 또는 `Classroom#teacher_id`
 - Planning Student/member data 또는 operation
 - Role enum 변경, manager의 admin 승격 또는 generic `/admin/*` 개방
-- UI redesign
+- 위 bulk-create row 입력 확장 외 UI redesign
+- 기존 Teacher bulk edit의 gender/avatar 수정
+- Avatar upload 또는 custom avatar 관리
+- Gender/avatar DB schema 변경
+- Turbo endpoint 추가와 Classroom 구조 변경
+- Authority 또는 SchoolYear lifecycle 변경
+- Single Teacher form 변경
 
 ## Expected implementation surface
 
 예상 파일은 구현 승인 후 실제 구조를 다시 좁게 확인한다.
+
+이번 bulk-create row 확장의 구현 범위는 기존 bulk setup/new/create controller 입력, `bulk_setup`/`bulk_new` view, `teacher_bulk_controller.js`, `Teachers::BulkCreator`의 Entry/normalization/validation/persistence와 관련 locale·focused regression으로 한정한다. 아래 목록은 기존 Teacher bulk 전체 surface이며 이번 확장을 위해 bulk updater/operator, policy, route 또는 단건 form을 함께 변경하는 근거가 아니다.
 
 - Routes와 `TeachersController` bulk actions
 - `TeacherManagementPolicy` 및 필요하면 bulk-specific policy query
