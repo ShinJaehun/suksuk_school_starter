@@ -23,7 +23,7 @@ Manager의 School operation authority는 global admin role 부여가 아니다. 
 | active Student/member operation | 모든 School | 자기 School 전체 | 거부 | 담당 Classroom | 관리 operation 거부 |
 | planning preparation | Teacher/Classroom/담임 | 자기 School Teacher/Classroom/담임 | 자기 School Teacher/Classroom/담임 | 거부 | 거부 |
 | planning Student roster mutation | 미지원 | 미지원 | 미지원 | 미지원 | 미지원 |
-| archived Teacher/Classroom/Student | read-only | 자기 School read-only | 거부 | 기존 historical scope | 허용된 조회만 |
+| archived Teacher/Classroom/Student | read-only | 자기 School read-only | 거부 | 거부 | 거부 |
 | planning manager 지정·교체·해제 | 가능 | 자기 School exact planning에서 가능 | 거부 | 거부 | 거부 |
 | actual rollover | 가능 | 거부 | 거부 | 거부 | 거부 |
 

@@ -16,7 +16,7 @@ Rollover의 manual-only 실행, 날짜 guard와 overdue planning recovery의 pri
 - Teacher User와 Classroom의 `school_year_id`는 생성 후 변경하지 않는다.
 - `/teachers`와 `/classrooms`는 canonical individual management surface로 유지하며 active, explicit planning과 authorized archive context에서 재사용한다.
 - Planning ordinary Teacher는 planning 상태에서 로그인할 수 없고, active planning manager만 명시적인 planning login context로 기존 Teacher login surface를 사용할 수 있다.
-- Planning Student 준비, 완료된 rollover reversal, archived authentication과 별도 generic historical UI는 이 phase 밖이다. 전환 전 overdue planning recovery는 calendar spec을 따른다.
+- Planning Student 준비, 완료된 rollover reversal과 별도 generic historical UI는 이 phase 밖이다. Archived annual account authentication은 현재 target이 아니며 별도 identity/access 설계가 승인될 경우에만 재검토한다. 전환 전 overdue planning recovery는 calendar spec을 따른다.
 
 ## Actor/authority matrix
 
@@ -216,13 +216,7 @@ Rollover 전 current manager는 자기 School의 기존 archive를 조회할 수
 
 ### Archived read-only 범위
 
-Global admin과 자기 School의 authorized current manager는 현재 서비스가 SchoolYear-aware 조회 surface를 제공하는 범위에서 다음 archived data를 조회할 수 있다.
-
-- Archived Teacher 목록과 상세
-- Archived Classroom 목록과 상세
-- Classroom의 historical HomeroomAssignment 정보
-- Archived Classroom의 Student/roster 정보
-- 그 밖에 이미 존재하는 archived operational record의 조회 surface
+Global admin과 자기 School의 authorized current manager는 현재 구현된 SchoolYear-aware 조회 surface가 제공하는 archived 정보만 조회할 수 있다. 이 authority는 read-only stewardship를 정의하며 특정 UI surface의 구현 완료를 보장하지 않는다. 현재 surface가 제공하지 않는 Teacher 상세, inactive roster 전체와 전체 HomeroomAssignment history는 필요가 확인될 때 별도 future enhancement로 검토한다.
 
 별도 `/archives` CRUD나 generic archive dashboard를 만들지 않는다. 기존 `/teachers?school_id=...&school_year_id=...`와 `/classrooms?school_id=...&school_year_id=...` 같은 SchoolYear-aware surface를 재사용한다. Current manager의 selector에는 자기 School의 archived years를 포함하지만 planning manager와 ordinary Teacher selector는 확장하지 않는다. Global admin의 기존 multi-School/year selector semantics를 유지한다.
 

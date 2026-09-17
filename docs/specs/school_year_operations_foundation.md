@@ -2,9 +2,9 @@
 
 ## 목적
 
-이 문서는 다학년도 운영을 시작하기 전에 `SchoolYear` context와 teacher authority 의미를 명시하는 구현 canonical spec이다. 현재 active-year 일상 운영을 보존하면서 planning 준비, rollover, archived 조회와 archived authentication을 서로 다른 후속 phase로 안전하게 나누는 기준으로 사용한다.
+이 문서는 다학년도 운영을 시작하기 전에 `SchoolYear` context와 teacher authority 의미를 명시하는 구현 canonical spec이다. 현재 active-year 일상 운영을 보존하면서 planning 준비, rollover와 archived 조회를 안전하게 나누는 기준으로 사용한다.
 
-이 단계는 foundation 계약만 확정한다. 구체 route, controller, policy, service와 UI는 승인된 후속 구현 단위에서 정하며, 이 문서 승인만으로 bulk bootstrap, rollover 또는 archived login을 한 번에 구현하지 않는다.
+이 단계는 foundation 계약만 확정한다. 구체 route, controller, policy, service와 UI는 승인된 후속 구현 단위에서 정하며, 이 문서 승인만으로 bulk bootstrap 또는 rollover를 한 번에 구현하지 않는다. Archived annual account login은 현재 canonical target이 아니다.
 
 이 문서의 초기 manager School operation authority와 context matrix는 후속 canonical contract인 [`planning_year_bootstrap.md`](planning_year_bootstrap.md)가 현재 정책을 supersede한다. 특히 active planning manager는 자기 exact immediate planning SchoolYear의 preparation authority만 가지며 active operation, archived read-only stewardship, `current_operational_manager?`, SchoolYear governance, actual rollover 또는 global-admin-only authority를 얻지 않는다.
 
@@ -19,8 +19,8 @@
 - 정상 teacher login은 `School -> active SchoolYear -> normalized login_id`로 resolve하며 사용자가 SchoolYear를 선택하지 않는다.
 - 현재 `/teachers`와 `/classrooms`는 active SchoolYear의 일상 운영 canonical surface다. Planning 지원을 위해 이 scope를 active 또는 planning으로 넓히지 않는다.
 - 현재 `User#active_teacher?`는 teacher role과 User account의 active 상태만 뜻한다.
-- 현재 request guard는 User, SchoolYear 또는 School이 active가 아닌 teacher session을 종료한다. 이 guard가 planning/archived account의 기존 policy 통과 가능성을 가리고 있으므로 archived authentication 전에 authority 의미를 분리해야 한다.
-- Planning bootstrap, rollover, archived school-operation UI와 archived teacher login은 아직 runtime에 없다.
+- 현재 request guard는 User, SchoolYear 또는 School이 active가 아닌 teacher session을 종료한다. 후속 planning-manager login eligibility는 별도 canonical contract를 따르며 archived annual account는 계속 로그인할 수 없다.
+- Planning bootstrap, rollover와 current manager의 archive read-only stewardship는 후속 canonical contract에 따라 구현되어 있다.
 
 ## Lifecycle semantics
 
@@ -45,7 +45,7 @@
 
 - 종료된 과거 학년도이며 그 아래 teacher, Classroom, Student, HomeroomAssignment와 downstream 자료를 그대로 보존한다.
 - School-operation data는 read-only다. SchoolYear archive 시 하위 row를 삭제하거나 일괄 inactive로 바꾸지 않는다.
-- Archived account authentication은 후속 별도 flow에서만 허용한다. 인증 성공은 archived data mutation authority를 뜻하지 않는다.
+- Archived annual account는 로그인할 수 없고 당시 role이나 assignment로 archive authority를 얻지 않는다. 별도 historical identity/access 설계가 승인될 경우에만 future consideration으로 재검토한다.
 - Application의 정상 operation에서 archived SchoolYear를 active 또는 planning으로 되돌리지 않는다. 직전 rollover 사고 복구를 위한 global-admin-only reversal은 일반 lifecycle operation과 구분한다.
 
 학년도 변경은 기존 `SchoolYear.year` 또는 연관 row의 SchoolYear FK를 바꾸는 방식이 아니다. 정상 전환은 기존 active row를 archived로, 준비된 planning row를 active로 바꾸며 두 학년도의 `year`와 연결 data를 보존한다.
@@ -57,7 +57,7 @@ Authority는 `actor role × School scope × SchoolYear status`의 결합으로 �
 - **Active teacher account**: teacher role이고 `User.active`가 true인 annual User다. SchoolYear나 School의 운영 가능 상태까지 보장하지 않는다.
 - **Current operational teacher**: active teacher account이며 그 User의 SchoolYear와 School이 모두 active다.
 - **Current operational manager**: current operational teacher이며 annual `school_role`이 manager다.
-- **Archived authenticated teacher**: explicit School과 archived SchoolYear context에서 인증된 해당 annual User다. 당시 role과 assignment가 read scope를 결정하며 mutation authority는 없다.
+- **Archive steward**: 모든 School을 조회하는 global admin 또는 자기 School을 조회하는 current operational manager다. Archived context에서는 read-only authority만 가진다.
 
 정확한 Ruby method 이름과 배치 위치는 implementation detail로 남긴다. 그러나 policy, scope, controller/domain operation, navigation과 landing path는 위 의미를 일관되게 사용해야 한다.
 
@@ -69,11 +69,10 @@ Authority는 `actor role × School scope × SchoolYear status`의 결합으로 �
 | Current operational manager | 자기 School의 school-wide 허용 operation | 자기 School 생성·준비 | 자기 School 전체 read-only | 자기 School 가능 |
 | Current operational ordinary teacher | 실제 담당 Classroom 범위 | 불가 | 현재 manager authority 없음 | 불가 |
 | Planning teacher account | Normal login과 runtime operation 불가 | 준비 대상일 뿐 actor authority 없음 | 불가 | 불가 |
-| Archived manager account | 불가 | 불가 | 해당 annual account의 SchoolYear에서 자기 School 전체 read-only | 불가 |
-| Archived ordinary teacher account | 불가 | 불가 | 해당 SchoolYear의 실제 HomeroomAssignment로 담당했던 Classroom 범위 read-only | 불가 |
+| Archived annual teacher account | 불가 | 불가 | 불가 | 불가 |
 | Student | active SchoolYear의 자기 active Classroom/Student 범위 | login 불가 | login 불가 | 불가 |
 
-현재 manager account의 historical management authority와 archived annual account의 당시 authority는 서로 다른 source다. 예를 들어 2026 ordinary teacher, 2027 manager인 사람의 2027 current manager account는 자기 School의 2026 전체를 read-only로 볼 수 있다. 반면 2026 archived account로 로그인하면 2026 당시 실제 담당 Classroom 범위만 볼 수 있다. 이름, `login_id`, email 또는 avatar로 두 User가 같은 사람인지 자동 추론하지 않는다.
+Current operational manager의 historical management authority는 현재 자기 School 운영 책임에서 나온다. Archived annual account의 당시 role이나 assignment는 authority source가 아니며, 이름, `login_id`, email 또는 avatar로 서로 다른 연도의 User가 같은 사람인지 자동 추론하지 않는다.
 
 Manager designation과 변경은 계속 global-admin-only다. Planning/rollover 권한은 manager에게 `/admin/*` 접근이나 자기 자신·다른 teacher를 manager로 지정할 권한을 주지 않는다.
 
@@ -108,8 +107,8 @@ authorized actor + explicit School + explicit archived SchoolYear
 
 - SchoolYear는 반드시 URL/entry의 School에 속하고 archived 상태여야 한다.
 - Active 또는 planning year를 archived context로 취급하지 않는다.
-- Archived teacher login은 `School + explicit archived SchoolYear + normalized login_id`로 account를 resolve한다.
-- Archived login rate-limit key에는 최소한 School, archived SchoolYear, normalized login ID와 기존에 요구되는 remote/credential-generation context를 포함한다.
+- Global admin은 모든 School에서, current operational manager는 자기 School에서만 explicit archived SchoolYear를 resolve한다.
+- Planning manager, ordinary Teacher, archived annual account와 Student는 archived context를 resolve할 수 없다.
 
 ## Planning SchoolYear creation boundary
 
@@ -146,10 +145,10 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 
 - 모든 write policy와 domain operation은 target resource의 School, SchoolYear와 status를 명시적으로 확인한다.
 - Current operational manager 판정은 User active, SchoolYear active, School active와 annual manager role을 모두 요구한다.
-- Archived authenticated teacher가 기존 active-year policy나 scope를 통과하지 않아야 한다.
+- Archived annual teacher account가 로그인하거나 기존 active-year policy나 scope를 통과하지 않아야 한다.
 - Planning mutation은 명시적인 planning context와 허용된 actor에게만 열고 normal teacher/student runtime operation은 계속 차단한다.
 - Archived SchoolYear 아래 Classroom, Student, HomeroomAssignment, teacher annual authority와 manager role 등 school-operation data는 actor와 무관하게 변경할 수 없다.
-- Authentication credential이나 account profile처럼 school-operation data와 구분되는 mutation은 archived authentication phase의 별도 spec에서 정한다.
+- Archived annual account credential mutation과 historical access는 제공하지 않는다. 별도 identity/access 설계가 승인될 경우에만 다시 검토한다.
 - UI control 숨김은 보조 수단이다. 직접 request, stale form, 변조된 id와 nested parameter도 동일한 server-side authorization을 통과해야 한다.
 
 ## Failure behavior
@@ -197,8 +196,8 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 9. 모든 write authorization은 actor role, School scope와 SchoolYear status를 확인하며 session guard나 UI 숨김에만 의존하지 않는다.
 10. Global admin과 current operational manager만 허용된 School에서 rollover할 수 있다는 후속 operation 계약이 policy와 service boundary에 반영된다.
 11. Rollover는 explicit confirmation, source/destination 확인, authority 재확인, locking과 transaction을 요구한다. Lock 이후 destination에 정확히 한 명의 유효한 manager annual User가 있음을 재검증하고, 없거나 invalid하면 source active year를 유지한다.
-12. Archived school-operation data는 모든 actor에게 read-only이며 archived authenticated teacher가 active-year write policy를 통과하지 않는다.
-13. Global admin, current manager, archived manager account와 archived ordinary account의 historical read scope가 서로 구분된다.
+12. Archived school-operation data는 모든 actor에게 read-only이며 archived annual teacher account가 로그인하거나 active-year policy를 통과하지 않는다.
+13. Global admin은 모든 School, current manager는 자기 School archive를 read-only로 조회하고 planning manager, ordinary Teacher와 Student는 archive authority를 얻지 않는다.
 14. Cross-School 및 status/id parameter 조작 request가 거부되고 기존 current-year login과 operation regression specs가 유지된다.
 15. Rollover reversal은 global admin만 same-School 직전 pair에 수행하는 제한된 recovery이며 generic archived reactivation이 아니다. Post-rollover operational mutation과 audit/readiness 기준은 별도 승인 전까지 구현하지 않는다.
 
@@ -211,7 +210,7 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 - Rollover service와 confirmation UI 구현
 - Rollover reversal/recovery service, UI와 audit 구현
 - Archived read-only UI와 historical reporting 구현
-- Archived teacher login, password lifecycle과 context UI 구현
+- Archived annual Teacher account login, 개인별 historical identity/access와 그 credential lifecycle
 - Teacher, Student, Classroom, 담임의 자동 복사·진급·승계
 - Permanent Teacher identity 또는 annual User 간 자동 연결
 - Manager용 `/admin/*` 개방 또는 manager designation 권한 변경
@@ -239,8 +238,8 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 ### C. Archived read-only enforcement
 
 - Archived resource의 policy/scope와 domain mutation 방어를 먼저 구현한다.
-- Global admin, current active-year manager와 당시 archived account role/assignment의 historical read scope를 구분한다.
-- Rollover와 archived authentication을 열기 전에 active-year write authority가 archived context에 닫혀 있음을 검증한다.
+- Global admin의 모든 School archive scope와 current active-year manager의 자기 School archive scope를 구분하고 다른 actor의 접근을 거부한다.
+- Active-year write authority가 archived context에 닫혀 있음을 검증한다.
 
 ### D. Rollover
 
@@ -257,10 +256,8 @@ Rollover 실행 권한은 global admin의 모든 School 또는 current operation
 - Same-School 직전 rollover pair, 강한 confirmation, deterministic locking과 atomic reversal을 요구한다.
 - Post-rollover operational mutation 판정, audit evidence와 정확한 readiness 기준을 human review로 확정하기 전에는 구현하지 않는다.
 
-### E. Archived teacher authentication과 historical context UI
+### Historical identity/access future consideration
 
-- School + explicit archived SchoolYear + login ID 인증, SchoolYear-aware rate limiting과 session context를 구현한다.
-- Archived navigation/landing, read-only 표시와 허용된 historical UI를 구현한다.
-- Archived credential 재발급과 본인 password 변경 정책은 이 phase의 별도 human-reviewed spec에서 확정한다.
+Archived annual Teacher account login과 개인별 historical access는 승인된 implementation phase가 아니다. 실제 필요가 확인되고 별도 identity/access 설계가 승인될 경우에만 인증, credential lifecycle과 UI를 함께 재검토한다.
 
-각 phase는 별도 bounded run과 human approval을 거친다. 특히 C의 read-only enforcement가 승인·검증되기 전에 D의 rollover나 E의 archived login을 개방하지 않는다.
+각 승인된 phase는 별도 bounded run과 human approval을 거친다. 특히 C의 read-only enforcement가 승인·검증되기 전에 D의 rollover를 개방하지 않는다.

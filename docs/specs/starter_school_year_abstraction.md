@@ -168,7 +168,7 @@ annual Teacher/Classroom 또는 annual identity를 장기 구조로 새로 확�
 
 - SchoolYear 생성·운영, planning 준비/취소, 현재 annual Teacher와 SchoolYear 소속 Classroom 구성,
   manager designation.
-- 수동 rollover, readiness, archive read context와 권한, 향후 별도 승인할 recovery/historical login.
+- 수동 rollover, readiness, archive read context와 권한 및 향후 별도 승인할 recovery. Archived annual account login과 개인별 historical access는 현재 infrastructure target이 아니다.
 - 현재 연도별 credential lookup과 session eligibility, annual User와 담임 관계의 무결성.
 - 상위 lifecycle을 검사하는 공통 boundary, 관리 context resolver, 연도별 query/preload/report adapter.
 
@@ -241,13 +241,14 @@ Compact에서 누가 언제 annual account와 다음 연도를 준비하는지, 
 | annual Teacher identity | 기존 architecture는 영구 identity 2계층을 target에서 제외 | 본 초안은 결정 재검토 가능성을 open question으로만 남김. 새 구조 확정은 기존 결정과 충돌 |
 | Classroom annual ownership | 기존 [Classroom Migration](classroom_school_year_migration.md)은 연도 FK와 불변성을 명시 | 그대로 보존. 비연도 Classroom 전환은 별도 정책 변경 |
 | planning login/Student 준비/rollover actor | 초기 Operations Foundation 본문에는 planning account 차단, Student 준비, manager rollover 문구가 남아 있음. 문서 머리말은 후속 Bootstrap의 supersede를 명시 | 현재 Bootstrap/Calendar/runtime 기준: eligible planning manager만 준비 로그인, planning Student mutation 미지원, admin-only 수동 rollover |
-| archived Teacher login과 historical scope | School Year Architecture는 장기 목표를 설명하며 해당 phase를 future work로 표시. 현재 로그인은 archived account를 받지 않음 | 구현된 것으로 기술하지 않음. 현재 admin/current manager archive read와 향후 historical account read를 구분 |
-| 학교 관리자 학생 운영 | [School Operations](../architecture/school_operations.md)는 미담당 manager의 학생 관리 권한이 없다고 서술. 현재 Roles/Bootstrap과 ClassroomPolicy·StudentPolicy는 자기 학교 active Student 운영을 허용 | 문서 충돌로 기록. 이번 초안으로 권한을 새로 확정하거나 기존 문서를 수정하지 않음 |
-| archived read 매트릭스 | Roles 문서에는 ordinary Teacher historical scope와 Student 허용 조회 표현이 있으나 현재 session/login과 policy는 일반적인 archived account/Student 접근을 제공하지 않음 | 미래 read API 설계 전에 정합성 확인 필요. 이 표현만으로 신규 접근을 허용하지 않음 |
+| archived Teacher login과 historical scope | Archived annual account는 현재 로그인할 수 없고 Teacher identity도 open question임 | Archived annual account login을 현재 또는 확정된 future target으로 두지 않음. 별도 historical identity/access 설계가 승인될 경우에만 재검토 |
+| 학교 관리자 학생 운영 | Current operational manager는 담당 여부와 관계없이 자기 학교의 active SchoolYear와 active Classroom 전체에서 현재 승인된 Student operation을 수행 | owner 기반 boundary도 이 school-wide authority를 보존하며 ordinary Teacher만 담당 Classroom으로 제한 |
+| archived read 매트릭스 | Global admin은 모든 School, current operational manager는 자기 School archive를 read-only로 조회. Planning manager, ordinary Teacher, archived annual account와 Student는 접근 불가 | Authority와 현재 제공 UI surface를 구분하고 archive mutation은 모두 거부 |
 | 서비스 schema와 runtime | schema에 성장기록 계열 테이블이 있으나 현재 runtime model은 없음 | 서비스 구현 또는 canonical ownership의 증거로 취급하지 않음; 별도 확인 |
 
-이 표의 충돌은 이 문서의 제안을 이미 승인된 정책으로 대체하여 해결하지 않는다. 테스트 전략의
-일부 legacy membership 표현도 현재 Student runtime 정의보다 우선하지 않는다.
+Manager의 Student 운영과 archived access 충돌은 별도 authority alignment 결정으로 정리되었으며
+operational boundary는 위 권한을 기준으로 삼는다. 테스트 전략의 일부 legacy membership 표현도
+현재 Student runtime 정의보다 우선하지 않는다.
 
 ## Non-goals
 
@@ -264,23 +265,22 @@ Compact에서 누가 언제 annual account와 다음 연도를 준비하는지, 
    재사용 범위와 새 downstream policy의 최소 호출 계약을 먼저 결정해야 한다.
 2. Controller 외 job/service 진입의 검증 책임, transaction 재검증과 rollover lock 계약을 어떻게
    제공할 것인가? 범용 wrapper 없이 보장할 수 있는 최소 구조는 무엇인가?
-3. Archive read, inactive School/Classroom 조회·재활성화, credential mutation의 예외를 어떻게
-   action별로 표현할 것인가? 기존 경로별 허용 차이는 후속 계약 표로 확인해야 한다.
+3. 허용된 archive read surface와 inactive School/Classroom 조회·재활성화 예외를 어떻게
+   action별로 표현할 것인가? Archived annual account credential mutation은 현재 권한 계약에 포함하지 않는다.
 4. 두 ManagementContext의 생성/읽기 전용 의미 차이를 보존하면서 어느 resolution 부분까지 공유할 것인가?
 5. 연도간 동일 Teacher·Student·교실 identity가 Starter의 책임인가, downstream 확장인가?
    실제 지속 데이터 요구 없이 현재 annual 구조를 바꾸지 않는다.
 6. Compact/Managed의 정확한 목적, 운영 주체와 전환 지원 범위는 무엇인가?
-7. 위 canonical 문서 충돌과 schema/runtime 차이를 어느 별도 run에서 확인·정리할 것인가?
+7. 남은 schema/runtime 차이를 어느 별도 run에서 확인·정리할 것인가?
 
 ## 가능한 후속 구현 단계
 
 각 단계는 이 초안 검토 후 별도 승인·run으로 수행한다. 새 의존성 전수 조사를 반복하지 않고
 위 inventory를 시작점으로 사용한다.
 
-1. **권한 충돌 선행 정리:** operational boundary 구현 전에 manager의 Student 운영 권한과
-   archived historical access 등 canonical 문서와 runtime 사이의 충돌을 별도 문서 run에서 해결한다.
-   이번 문서는 어느 쪽 정책이 정답인지 결정하지 않으며, 현재 policy와 오래된 문서 어느 쪽도
-   검토 없이 canonical source로 가정하지 않는다.
+1. **권한 기준 적용:** current operational manager의 자기 학교 active Student 전체 운영과
+   global admin/current operational manager의 archive read-only stewardship를 boundary 기준으로 삼는다.
+   Planning manager, ordinary Teacher, archived annual account와 Student에는 archive authority를 부여하지 않는다.
 2. **계약 확정:** open question 중 operational action/owner 계약을 결정하고, 선행 정리에서
    승인된 권한과 lifecycle 계약을 boundary의 기준으로 삼는다. Teacher/Classroom 구조 변경은 분리한다.
 3. **관리 resolver:** 두 ManagementContext의 공통 School/SchoolYear 선택 규칙만 추출한다.

@@ -54,7 +54,7 @@ Teacher 0..1 ↔ 0..1 Classroom
 
 - Student 소속과 lifecycle의 canonical source는 `Student.classroom_id`, `Student.active`다.
 - active operational Classroom에서 권한 있는 global admin, 자기 School current operational manager 또는 담당 ordinary Teacher가 roster, profile, lifecycle과 PIN/token 관련 operation을 수행한다.
-- archived Student 자료는 자기 scope에서 read-only다.
+- archived Student 자료는 global admin이 모든 School에서, current operational manager가 자기 School에서만 read-only로 조회한다. Planning manager, ordinary Teacher와 Student는 archived 자료에 접근하지 않는다.
 - planning Classroom의 Student roster CRUD는 현재 지원하지 않는다.
 
 ## 권한 원칙

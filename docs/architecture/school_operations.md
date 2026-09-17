@@ -46,7 +46,7 @@ manager의 canonical source는 active annual teacher의 `User.school_role == "ma
 
 이 policy는 학교 운영 정보와 canonical `/teachers` 관리 route에 연결된다. member는 자신의 학교 현황을 읽고 global admin은 manager를 지정·해제할 수 있다. manager는 학급을 다른 학교로 이동할 수 없고, teacher를 다른 학교로 이동하거나 학교 소속을 해제하거나 manager 지정·해제를 할 수 없다. 학교 manager의 teacher 생성은 자신의 active SchoolYear 학교로 고정되며 항상 일반 구성원으로 생성된다.
 
-담당 teacher 배정·해제는 역할별 전용 경로에서 수행한다. teacher form은 학교, 학년, 단일 학급을 함께 관리하고 현재·과거 담당 관계는 `HomeroomAssignment`에 저장하며 `ended_on IS NULL`인 row가 현재 담당이다. classroom create/update는 담당 teacher를 동시에 지정하지 않는다. `/classrooms/:id/edit`에서 admin과 해당 학교 manager는 반·학년 등 구조 정보를 관리하고, 담당 teacher는 허용된 교실 운영 기능만 관리한다. manager가 담당 teacher가 아니라면 학생 관리와 운영 권한은 없다.
+담당 teacher 배정·해제는 역할별 전용 경로에서 수행한다. teacher form은 학교, 학년, 단일 학급을 함께 관리하고 현재·과거 담당 관계는 `HomeroomAssignment`에 저장하며 `ended_on IS NULL`인 row가 현재 담당이다. classroom create/update는 담당 teacher를 동시에 지정하지 않는다. `/classrooms/:id/edit`에서 admin과 해당 학교 manager는 반·학년 등 구조 정보를 관리하고, 담당 teacher는 허용된 교실 운영 기능만 관리한다. Current operational manager는 담당 여부와 관계없이 자기 학교의 active SchoolYear에 속한 active Classroom 전체에서 Student 등록·수정·비활성화·복구, roster, PIN, 학생 로그인 정보와 token 관리를 수행한다.
 
 ---
 
